@@ -1,5 +1,6 @@
 """Grounded answer generation with a strict, passage-bound output contract."""
 import json
+import re
 from typing import Literal
 
 from pydantic import Field, model_validator
@@ -27,6 +28,19 @@ class GeneratedAnswer(Contract):
         if (self.status == "answered") != bool(self.claims):
             raise ValueError("Answered requires claims; insufficient evidence requires none")
         return self
+
+
+def stored_quote(quote: str, text: str) -> str:
+    """Restore source whitespace without accepting edits to the quoted wording."""
+    if quote in text:
+        return quote
+    # Models often flatten OCR line breaks. Match the same non-whitespace
+    # characters and boundaries, then return the actual stored substring.
+    pattern = r"\s+".join(re.escape(token) for token in quote.split())
+    match = re.search(pattern, text) if pattern else None
+    if match is None:
+        raise ValueError("Invalid evidence")
+    return match.group(0)
 
 
 def generate_answer(question: str, passages: list[Passage]) -> list[AnswerClaim]:
@@ -57,10 +71,11 @@ INPUT_JSON:
             citations = []
             for evidence in claim.citations:
                 passage = supplied.get(evidence.passage_id)
-                if passage is None or evidence.quote not in passage.text:
+                if passage is None:
                     raise ValueError("Invalid evidence")
                 citations.append(Citation(
-                    **passage.model_dump(exclude={"text"}), quote=evidence.quote,
+                    **passage.model_dump(exclude={"text"}),
+                    quote=stored_quote(evidence.quote, passage.text),
                 ))
             claims.append(AnswerClaim(text=claim.text, citations=citations))
         return claims

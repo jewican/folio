@@ -482,6 +482,40 @@ def test_ask_rejects_invalid_generation(client, tmp_path, model_env, monkeypatch
     assert 'private secret' not in response.text
 
 
+@pytest.mark.parametrize('quote,valid', [
+    ('six (6) in the affirmative, thirty-eight (38) in the negative, and zero (0) in abstention', True),
+    ('six (6) in the affirmative, thirty-eight (38) in the negative, and zero\n(0) in abstention', True),
+    ('six (6) in the negative, thirty-eight (38) in the affirmative', False),
+    ('six (6) in the affirmative, thirty-eight (38) in the negative and zero (0) in abstention', False),
+    ('six (6) in the affirmative, ... zero (0) in abstention', False),
+])
+def test_ask_restores_only_whitespace_in_ocr_quotes(client, model_env, monkeypatch, quote, valid):
+    # Same wrapped vote wording that the live model flattened in FOLIO-02.
+    source = ('With a vote of six (6) in the affirmative, thirty-eight (38) in the negative, and zero\n'
+              '(0) in abstention, the Committee decided not to open the box.')
+    doc_id = upload(client, source.encode()).json()['doc_id']
+
+    def respond(request):
+        prompt = json.loads(request.content)['contents'][0]['parts'][0]['text']
+        context = json.loads(prompt.split('INPUT_JSON:\n', 1)[1])
+        passage = context['passages'][0]
+        result = {'status': 'answered', 'claims': [{
+            'text': 'The vote was 6 affirmative, 38 negative, and 0 abstentions.',
+            'citations': [{'passage_id': passage['passage_id'], 'quote': quote}],
+        }]}
+        return httpx.Response(200, json={'modelVersion': 'test', 'candidates': [{
+            'finishReason': 'STOP', 'content': {'parts': [{'text': json.dumps(result)}]}}]})
+
+    mock_model_transport(model_env, monkeypatch, respond)
+    response = client.post('/ask', json={'question': 'What was the vote?', 'doc_ids': [doc_id]})
+    assert response.status_code == (200 if valid else 502), response.text
+    if valid:
+        citation = response.json()['claims'][0]['citations'][0]
+        stored = client.get('/passages/' + citation['passage_id']).json()
+        assert citation['quote'] in stored['text']
+        assert citation['quote'] == source[len('With a vote of '):source.index(', the Committee')]
+
+
 def test_ask_empty_evidence_and_unknown_selection(client, monkeypatch):
     from app.generation import answer
     def fail():

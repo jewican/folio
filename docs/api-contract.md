@@ -66,7 +66,10 @@ A `Citation` object:
 ```
 
 `quote` is a nonempty exact contiguous substring of the referenced passage's
-stored `text`. IDs must resolve through `GET /passages/{id}`. W1 validates
+stored `text`. If generated wording matches except for whitespace (for example,
+flattened OCR line breaks), restore the exact stored substring before returning
+the citation. Changes to words or punctuation are rejected. IDs must resolve
+through `GET /passages/{id}`. W1 validates
 citations against the exact retrieved passages supplied to the model, including
 selected document membership and metadata; reject invalid generated evidence
 rather than returning invented IDs. W4 checks actual claim support. Citation
