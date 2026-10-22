@@ -6,9 +6,100 @@ Folio turns a pile of dated public reports into **cited answers** and **trustwor
 
 | Slides | Business Plan | Demo Video |
 | :---: | :---: | :---: |
-| [View](https://drive.google.com/file/d/1N3WFr5wsaiRdHwgB7LNKq7YF01UXPoFQ/view?usp=drive_link) | [View](https://drive.google.com/file/d/14vPPITAEuaf6VaYoBpopxnMhoU9mzAAj/view?usp=drive_link) | [Watch](https://github.com/xienshane) |
+| [View](https://drive.google.com/file/d/1OvrtAIxMQ_YCJIGa1Z0xb9IvXflOQp2F/view?usp=drive_link) | [View](https://drive.google.com/file/d/14vPPITAEuaf6VaYoBpopxnMhoU9mzAAj/view?usp=drive_link) | [Watch](https://drive.google.com/file/d/17Q3dbk6T3XcBNkhT6EgEn_o5A6-PK21O/view?usp=drive_link) |
 
 ---
+
+## Business plan
+
+**Target users and buyer.** Everyday Filipino news readers and students benefit
+from accessible explanations of complicated public stories. Our first proposed
+paying customers are small PR/public-affairs firms, media research teams, and
+policy researchers. Their repeated task is to turn dated reports into a briefing,
+check its evidence, and revise it when new reporting arrives. The buyer is the
+team lead responsible for research quality and turnaround time.
+
+**Value proposition.** Folio brings selected sources, publication dates, cited
+answers, and explicit older/newer comparisons into one story workflow. A
+researcher can inspect the stored quote behind a claim and evidence from both
+versions behind an asserted change. We will measure whether this reduces briefing
+and verification time while preserving claim support; time savings are not yet
+validated with customers.
+
+**Revenue model (proposed, not currently sold).** Following the
+[full business plan](https://drive.google.com/file/d/14vPPITAEuaf6VaYoBpopxnMhoU9mzAAj/view),
+test a free public tier with limited questions and a **₱1,999/month Teams package
+for up to five seats**. Teams would pay for a shared evidence library, collaborative
+workflows, and client-ready exports. These paid capabilities, account management,
+and billing are future work; the current prototype runs locally. An optional
+₱99/month personal tier is a later experiment and is excluded from the initial
+revenue model.
+
+**Pilot economics (assumptions to validate).** At ₱4,000 fixed cash cost per month
+and ₱250 variable cost per paying team, each ₱1,999 subscription contributes
+₱1,749. Modeled cash break-even is `ceil(4000 / 1749) = 3` paying teams: ₱5,997
+revenue against ₱4,750 modeled monthly costs. This excludes salaries, founder
+labor, taxes, acquisition costs, and recovery of pilot funding. Free-tier usage
+must be capped and measured. The pilot spending ceiling is ₱20,000; it does not
+cover six months at ₱4,000/month without reduced spending or revenue. No ongoing
+free provider credits are assumed.
+
+**Competition and positioning.** Citations alone are not a unique advantage.
+The following comparison uses competitors' published capabilities; Folio's
+positioning is a hypothesis to test with researchers, not a benchmark result.
+
+| Alternative | Existing value | Folio's proposed reason to choose it |
+| --- | --- | --- |
+| [Google NotebookLM](https://services.google.com/fh/files/misc/notebooklm_gfe_one_pager.pdf) | Source-grounded research with inline citations | A focused developing-story workflow with explicit dated version selection and inspectable evidence for both sides of a change. |
+| [Perplexity Spaces](https://hub-prod.perplexity.ai/hub/faq/what-are-spaces) | A research hub combining web and uploaded files | Deliberate source selection for each answer and comparison, with citation IDs and exact quotes checked against local stored passages. |
+| Manual PDF search and a research spreadsheet | Familiar tools and direct source inspection | Keep the source collection, briefing, questions, and version comparison together to reduce repeated searching. |
+
+These alternatives may fit many users well. Our pilot must demonstrate that
+Folio's specific comparison workflow is useful enough to justify switching.
+
+**Go to market.** In month 1, interview 10–15 organizations about a recent
+document-heavy assignment and test willingness to pay at the proposed price.
+In months 2–3, recruit five pilot organizations through direct outreach to
+research leads and journalism/policy communities. Observe real briefing tasks,
+record repeat use and model cost per account, and compare time and citation
+quality with each team's current workflow. In months 4–6, target three paying
+teams after validating the shared workflow. These are targets, not signed
+customers or current revenue.
+
+**Risks and decision criteria.** Source completeness, document rights, privacy,
+unsupported conclusions, and model cost can limit adoption. Begin with public or
+permitted documents and human-reviewed briefings. For the five-organization
+pilot, proposed success gates are weekly repeat use by at least three teams,
+a 30% median reduction in measured briefing time, no unsupported critical claims
+in reviewed outputs, and actual variable cost within ₱250 per paying team per
+month. Revise the product, limits, or price if these gates fail.
+
+## Next steps
+
+| When | Owner | Deliverable and acceptance check |
+| --- | --- | --- |
+| Before final judging | W1 integration, with W3/W4 verification | Open slides, plan, and video in a signed-out browser; run the complete upload → ask → inspect → newer upload → compare → restart workflow twice on the demo laptop. |
+| Next week | W4 evaluation, W1 generation, W2 retrieval | Rerun all ten answer-quality cases and two held-out controls on the current build. Publish failures, citation support, and uncached latency alongside the commit and settings; a browser workflow pass alone is not an answer-quality pass. |
+| Month 1 | Team / customer discovery | Complete 10–15 interviews, collect five representative research tasks with permission, and record current briefing time and willingness to pay. |
+| Months 2–3 | W3 experience, W1 integration, W4 pilot evaluation | Test the existing local prototype with five organizations and measure the pilot gates above. Prioritize evidence export and reusable briefing output from observed needs. Shared accounts and permissions require a separately agreed scope after the hackathon. |
+| Months 4–6 | Team / commercialization | Target three paying teams only after validating demand, delivery costs, and the planned shared workflow; revisit pricing using observed costs and conversion. |
+
+Automated monitoring and broader story coverage remain later product ideas.
+The hackathon implementation stays with uploaded PDF/TXT, local SQLite/files,
+BM25 retrieval and the approved model API.
+
+## Judge walkthrough
+
+1. Open the [demo video](https://drive.google.com/file/d/17Q3dbk6T3XcBNkhT6EgEn_o5A6-PK21O/view)
+   for the product walkthrough, or run the app using the quick start below.
+2. Select the initial dated reports and use **Catch Me Up**. Open a citation to
+   check its exact quote, date, and stored passage.
+3. Upload the held-out newer report, then use **What Changed** with explicitly
+   selected older/newer versions. Inspect the evidence from both reports.
+4. Ask for information absent from the selected sources and inspect the
+   insufficient-evidence response. See [corpus provenance](docs/evaluation.md):
+   the held-out October update is a demo-authored paraphrase, and source
+   authenticity has not been independently verified.
 
 ## Why Folio
 
