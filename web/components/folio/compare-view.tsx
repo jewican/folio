@@ -33,6 +33,8 @@ export type CompareState =
 type CompareViewProps = {
   documents: FolioDocument[] | null;
   state: CompareState;
+  selectedIds: [string, string];
+  onSelectionChange: (ids: [string, string]) => void;
   activeCitation: Citation | null;
   onOpenCitation: (citation: Citation) => void;
   onCompare: (request: CompareRequest) => void;
@@ -40,30 +42,16 @@ type CompareViewProps = {
 
 export function CompareView({
   documents,
+  selectedIds,
+  onSelectionChange,
   state,
   activeCitation,
   onOpenCitation,
   onCompare,
 }: CompareViewProps) {
   const docs = documents ?? [];
-  const lastRequest =
-    state.status === "idle"
-      ? null
-      : state.status === "done"
-        ? state.response
-        : state.request;
-
-  // null means "not picked yet": default to the earliest and latest reports.
-  const [olderChoice, setOlderChoice] = useState<string | null>(
-    lastRequest?.older_doc_id ?? null,
-  );
-  const [newerChoice, setNewerChoice] = useState<string | null>(
-    lastRequest?.newer_doc_id ?? null,
-  );
   const [question, setQuestion] = useState("");
-
-  const olderId = olderChoice ?? docs[0]?.doc_id ?? "";
-  const newerId = newerChoice ?? docs[docs.length - 1]?.doc_id ?? "";
+  const [olderId, newerId] = selectedIds;
   const older = docs.find((d) => d.doc_id === olderId);
   const newer = docs.find((d) => d.doc_id === newerId);
 
@@ -113,7 +101,7 @@ export function CompareView({
             label="Older report"
             value={olderId}
             documents={docs}
-            onChange={setOlderChoice}
+            onChange={(id) => onSelectionChange([id, newerId])}
           />
           <span
             aria-hidden
@@ -125,7 +113,7 @@ export function CompareView({
             label="Newer report"
             value={newerId}
             documents={docs}
-            onChange={setNewerChoice}
+            onChange={(id) => onSelectionChange([olderId, id])}
           />
         </div>
 
@@ -158,8 +146,7 @@ export function CompareView({
               <button
                 type="button"
                 onClick={() => {
-                  setOlderChoice(newerId);
-                  setNewerChoice(olderId);
+                  onSelectionChange([newerId, olderId]);
                 }}
                 className="inline-flex items-center gap-1 font-medium text-[#315f9e] hover:underline"
               >
@@ -220,6 +207,7 @@ function ReportPicker({
         disabled={documents.length === 0}
         className="w-full min-w-0 truncate rounded-lg border border-[#d9dcdf] bg-white px-2.5 py-2 text-[13px] text-[#333d4a] outline-none focus:border-[#8eafd3] focus:shadow-[0_0_0_3px_#c6d9ee40]"
       >
+        <option value="" disabled>Select a report</option>
         {documents.map((doc) => (
           <option key={doc.doc_id} value={doc.doc_id}>
             {formatShortDate(doc.report_date)} · {doc.title}

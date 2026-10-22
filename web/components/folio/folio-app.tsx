@@ -25,6 +25,7 @@ export function FolioApp() {
   const [documentsError, setDocumentsError] = useState<string | null>(null);
   const [documentsRequest, setDocumentsRequest] = useState(0);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [compareChoices, setCompareChoices] = useState<[string, string] | null>(null);
   const [view, setView] = useState<View>("catch-up");
   const [askState, setAskState] = useState<AskState>({ status: "idle" });
   const [catchState, setCatchState] = useState<AskState>({ status: "idle" });
@@ -61,6 +62,20 @@ export function FolioApp() {
   }, [evidenceOpen]);
 
   const selection = documents?.filter((doc) => selectedIds.includes(doc.doc_id)).map((doc) => doc.doc_id) ?? [];
+  const comparisonIds: [string, string] = compareChoices ?? [documents?.at(-2)?.doc_id ?? "", documents?.at(-1)?.doc_id ?? ""];
+  const timelineSelection = view === "compare" ? comparisonIds.filter(Boolean) : selection;
+  function toggleTimelineDocument(id: string) {
+    if (view !== "compare") {
+      toggleDocument(id);
+      return;
+    }
+    const ids = comparisonIds.includes(id)
+      ? comparisonIds.filter((item) => item && item !== id)
+      : [...comparisonIds.filter(Boolean), id];
+    if (ids.length > 2) return;
+    const sorted = documents?.filter((doc) => ids.includes(doc.doc_id)).map((doc) => doc.doc_id) ?? [];
+    setCompareChoices([sorted[0] ?? "", sorted[1] ?? ""]);
+  }
   function toggleDocument(id: string) {
     setSelectedIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
   }
@@ -126,11 +141,7 @@ export function FolioApp() {
           <Link href="/" className="back-link"><ArrowLeft size={14} /> Back to the briefing</Link>
           <div className="story-heading"><p className="news-eyebrow"><span className="status-dot" /> THE STORY ROOM</p><h1>{documents === null ? "Opening the story…" : storyTitle(documents)}</h1><p>Understand the story behind the headlines. Every answer starts with a source.</p><div className="story-meta"><span><FileText size={14} /> {documents?.length ?? 0} indexed reports</span>{latest && <span>Latest report · {formatReportDate(latest.report_date)}</span>}</div></div>
           {documentsError && <div className="story-alert" role="alert">{documentsError} <button onClick={() => { setDocumentsError(null); setDocumentsRequest((n) => n + 1); }}>Retry connection</button></div>}
-          {!!documents?.length && <StoryTimeline documents={documents} onSelectReport={(id) => {
-            setSelectedIds((current) => current.includes(id) ? current : [...current, id]);
-            setView((current) => current === "compare" ? "catch-up" : current);
-            document.getElementById("story-tools")?.scrollIntoView({ behavior: reduced ? "instant" : "smooth", block: "start" });
-          }} />}
+          {!!documents?.length && <StoryTimeline documents={documents} selectedIds={timelineSelection} onToggleReport={toggleTimelineDocument} comparison={view === "compare"} />}
           <div id="story-tools" className="story-workspace">
             <div className="story-content">
               <nav className="story-tabs" aria-label="Story sections">{VIEWS.map(({ id, label, icon: Icon }) => <button key={id} aria-current={view === id ? "page" : undefined} onClick={() => { setView(id); setActiveCitation(null); }}><Icon size={16} />{label}{view === id && <motion.span className="tab-indicator" layoutId="story-active-tab" transition={{ duration: reduced ? 0 : .22 }} />}</button>)}<button className="evidence-tab xl:hidden" onClick={openEvidence}><BookOpen size={16} /><span className="max-sm:sr-only">Evidence</span></button></nav>
@@ -148,7 +159,7 @@ export function FolioApp() {
                 <button type="button" className="source-add" onClick={() => setUploadOpen(true)}><Plus size={14} /> Add a report</button>
               </details>}
               <AnimatePresence mode="wait" initial={false}><motion.div key={view} initial={{ opacity: 0, y: reduced ? 0 : 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: reduced ? 0 : .16 }} className="story-view" aria-live="polite" aria-busy={view === "compare" ? compareState.status === "loading" : state.status === "loading"}>
-                {view === "compare" ? <CompareView documents={documents} state={compareState} activeCitation={activeCitation} onOpenCitation={openCitation} onCompare={compareReports} /> : state.status !== "idle" ? <><AnswerView heading={view === "catch-up" ? "The story so far" : undefined} state={state} documents={documents ?? []} activeCitation={activeCitation} onOpenCitation={openCitation} onRetry={(question) => askQuestion(question, view === "catch-up")} />{view === "catch-up" && <div className="catch-refresh"><button className="news-button" disabled={!selection.length || selection.length > MAX_ASK_DOCUMENTS || state.status === "loading"} onClick={() => askQuestion(CATCH_UP_QUESTION, true)}>Update catch-up from selected reports <ArrowRight size={15} /></button></div>}</> : view === "catch-up" ? <section className="catch-intro"><span className="intro-icon"><Sparkles size={24} strokeWidth={1.4} /></span><p className="news-eyebrow">THE CONTEXT YOU CAME FOR</p><h2>Get the story so far.</h2><p>A catch-up grounded in your selected reports: the key events, the different accounts, and the questions still open.</p><button className="news-button news-button-dark" disabled={!selection.length || selection.length > MAX_ASK_DOCUMENTS} onClick={() => askQuestion(CATCH_UP_QUESTION, true)}>Catch me up <ArrowRight size={16} /></button><small><BookOpen size={13} /> Claims link directly to their supporting passages.</small></section> : <section className="catch-intro ask-intro"><span className="intro-icon"><MessageCircle size={24} strokeWidth={1.4} /></span><p className="news-eyebrow">GO A LITTLE DEEPER</p><h2>Your questions. The sources.</h2><p>Ask about a detail, a date, or a claim. Folio answers from the reports you select and shows its evidence.</p><Composer selectedCount={selection.length} onAsk={askQuestion} /></section>}
+                {view === "compare" ? <CompareView documents={documents} selectedIds={comparisonIds} onSelectionChange={setCompareChoices} state={compareState} activeCitation={activeCitation} onOpenCitation={openCitation} onCompare={compareReports} /> : state.status !== "idle" ? <><AnswerView heading={view === "catch-up" ? "The story so far" : undefined} state={state} documents={documents ?? []} activeCitation={activeCitation} onOpenCitation={openCitation} onRetry={(question) => askQuestion(question, view === "catch-up")} />{view === "catch-up" && <div className="catch-refresh"><button className="news-button" disabled={!selection.length || selection.length > MAX_ASK_DOCUMENTS || state.status === "loading"} onClick={() => askQuestion(CATCH_UP_QUESTION, true)}>Update catch-up from selected reports <ArrowRight size={15} /></button></div>}</> : view === "catch-up" ? <section className="catch-intro"><span className="intro-icon"><Sparkles size={24} strokeWidth={1.4} /></span><p className="news-eyebrow">THE CONTEXT YOU CAME FOR</p><h2>Get the story so far.</h2><p>A catch-up grounded in your selected reports: the key events, the different accounts, and the questions still open.</p><button className="news-button news-button-dark" disabled={!selection.length || selection.length > MAX_ASK_DOCUMENTS} onClick={() => askQuestion(CATCH_UP_QUESTION, true)}>Catch me up <ArrowRight size={16} /></button><small><BookOpen size={13} /> Claims link directly to their supporting passages.</small></section> : <section className="catch-intro ask-intro"><span className="intro-icon"><MessageCircle size={24} strokeWidth={1.4} /></span><p className="news-eyebrow">GO A LITTLE DEEPER</p><h2>Your questions. The sources.</h2><p>Ask about a detail, a date, or a claim. Folio answers from the reports you select and shows its evidence.</p><Composer selectedCount={selection.length} onAsk={askQuestion} /></section>}
               </motion.div></AnimatePresence>
               {view === "ask" && askState.status !== "idle" && <div className="story-composer"><Composer compact selectedCount={selection.length} onAsk={askQuestion} /></div>}
             </div>

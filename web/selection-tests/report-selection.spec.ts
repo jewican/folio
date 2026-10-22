@@ -52,16 +52,16 @@ test("multi-select scopes catch-up and questions, preserves timeline, and compar
   await expect(page.getByRole("button", { name: /Update catch-up/ })).toBeDisabled();
   await expect(picker.getByRole("checkbox", { checked: true })).toHaveCount(0);
 
-  // Browsing the timeline does not alter selection. Using a report adds it.
+  // Timeline selections directly control the reports used by questions.
   const timeline = page.getByRole("list", { name: "Report publication timeline" });
   await timeline.getByRole("button").nth(0).click();
   await expect(page.locator("#timeline-report h3")).toHaveText(docs[0].title);
-  await expect(picker.getByRole("checkbox", { checked: true })).toHaveCount(0);
-  await page.getByRole("button", { name: "Use this report" }).click();
+  await expect(picker.getByRole("checkbox", { checked: true })).toHaveCount(1);
   await timeline.getByRole("button").nth(2).click();
-  await page.getByRole("button", { name: "Use this report" }).click();
   await expect(picker.getByRole("checkbox", { checked: true })).toHaveCount(2);
-  await page.getByRole("button", { name: "Use this report" }).click();
+  await page.getByRole("button", { name: "Remove report", exact: true }).click();
+  await expect(picker.getByRole("checkbox", { checked: true })).toHaveCount(1);
+  await page.getByRole("button", { name: "Select report", exact: true }).click();
   await expect(picker.getByRole("checkbox", { checked: true })).toHaveCount(2);
 
   await page.getByRole("button", { name: "Ask Folio", exact: true }).click();
@@ -91,6 +91,8 @@ test("multi-select scopes catch-up and questions, preserves timeline, and compar
   await page.getByRole("button", { name: "What Changed", exact: true }).click();
   await expect(picker).toHaveCount(0);
   await expect(page.getByRole("combobox")).toHaveCount(2);
+  await expect(page.getByLabel("Older report")).toHaveValue(ids[1]);
+  await expect(page.getByLabel("Newer report")).toHaveValue(ids[2]);
   await page.getByLabel("Older report").selectOption(ids[0]);
   await page.getByLabel("Newer report").selectOption(ids[0]);
   await expect(page.getByRole("button", { name: "Compare reports" })).toBeDisabled();
