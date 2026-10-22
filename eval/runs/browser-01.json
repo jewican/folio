@@ -1,0 +1,299 @@
+{
+  "config": {
+    "argv": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "C:\\Users\\admin\\Desktop\\alma-hackathon\\node_modules\\@playwright\\test\\cli.js",
+      "test"
+    ],
+    "configFile": "C:\\Users\\admin\\Desktop\\alma-hackathon\\web\\playwright.config.ts",
+    "rootDir": "C:/Users/admin/Desktop/alma-hackathon/web/tests",
+    "failOnFlakyTests": false,
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "C:/Users/admin/Desktop/alma-hackathon/web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "",
+        "name": "",
+        "testDir": "C:/Users/admin/Desktop/alma-hackathon/web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 150000
+      }
+    ],
+    "filteredProjects": [
+      {
+        "grep": {},
+        "grepInvert": null,
+        "outputDir": "C:\\Users\\admin\\Desktop\\alma-hackathon\\web\\test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "name": "",
+        "testDir": "C:\\Users\\admin\\Desktop\\alma-hackathon\\web\\tests",
+        "snapshotDir": "C:\\Users\\admin\\Desktop\\alma-hackathon\\web\\tests",
+        "testIgnore": [],
+        "testMatch": "**/*.@(spec|test).?(c|m)[jt]s?(x)",
+        "timeout": 150000,
+        "use": {
+          "baseURL": "http://localhost:3000",
+          "viewport": {
+            "width": 1440,
+            "height": 1000
+          },
+          "trace": "retain-on-failure",
+          "launchOptions": {
+            "executablePath": "C:/Program Files/Google/Chrome/Application/chrome.exe"
+          }
+        },
+        "dependencies": [],
+        "ignoreSnapshots": false,
+        "__projectId": ""
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "list",
+        null
+      ],
+      [
+        "json",
+        {
+          "outputFile": "test-results/live-report.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "default",
+    "updateSourceMethod": "patch",
+    "version": "1.64.1",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "live-rag.spec.ts",
+      "file": "live-rag.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "real uploads persist and empty evidence stays explicit without sample data",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 150000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 4173,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-22T06:40:06.984Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "ae63f264418bb653de85-3d4dd919c1ddc6f94e78",
+          "file": "live-rag.spec.ts",
+          "line": 41,
+          "column": 5
+        },
+        {
+          "title": "real Gemini answer opens canonical source passages on desktop and mobile",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 150000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 17582,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-22T06:40:12.518Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "real-api-response",
+                      "contentType": "application/json",
+                      "body": "ewogICJxdWVzdGlvbiI6ICJBY2NvcmRpbmcgdG8gdGhlIEF1Z3VzdCA1IHByZXNzIGJyaWVmZXIsIHdoeSBkaWQgdGhlIFN1cHJlbWUgQ291cnQgZGlzbWlzcyB0aGUgaW1wZWFjaG1lbnQgcGV0aXRpb25zPyIsCiAgImRvY19pZHMiOiBbCiAgICAiZG9jXzZiZGQxMzVjZmI2NjRjODA4OWU5NDIzZTA1ZTg2Y2ZkIiwKICAgICJkb2NfZGQ4MDFlYjlmOTQyNDA2OTlmNTE0NmVhNmE4YmQ4MTgiCiAgXSwKICAic3RhdHVzIjogImFuc3dlcmVkIiwKICAiYW5zd2VyIjogIlRoZSBTdXByZW1lIENvdXJ0IHJ1bGVkIHRoYXQgdGhlIGlzc3VlcyByYWlzZWQgaW4gdGhlIHBldGl0aW9ucyBoYWQgYmVjb21lIG1vb3QsIG9yIG5vIGxvbmdlciByZXF1aXJlZCByZXNvbHV0aW9uLCBiZWNhdXNlIHRoZSBIb3VzZSBvZiBSZXByZXNlbnRhdGl2ZXMgaGFkIGFscmVhZHkgYXBwcm92ZWQgYW5kIHRyYW5zbWl0dGVkIHRoZSBBcnRpY2xlcyBvZiBJbXBlYWNobWVudCB0byB0aGUgU2VuYXRlLiBUaGUgQ291cnQgZXhwbGFpbmVkIHRoYXQgdGhlIHRyYW5zbWl0dGFsIG1hcmtlZCB0aGUgZW5kIG9mIHRoZSBIb3VzZSdzIHJvbGUgaW4gdGhlIGltcGVhY2htZW50IHByb2Nlc3MsIG1lYW5pbmcgdGhlIGFjdGlvbnMgdGhlIHBldGl0aW9uZXJzIHNvdWdodCB0byBzdG9wIGhhZCBhbHJlYWR5IGJlZW4gY29tcGxldGVkLCBhbmQgdGhlIHByb2Nlc3MgaGFkIHNoaWZ0ZWQgdG8gdGhlIFNlbmF0ZSwgd2hpY2ggaGFkIGNvbnZlbmVkIGFzIGFuIGltcGVhY2htZW50IGNvdXJ0IGFuZCBiZWd1biBwcm9jZWVkaW5ncy4gQXMgYSByZXN1bHQsIGFueSBydWxpbmcgb24gdGhlIHZhbGlkaXR5IG9mIHRoZSBhY3Rpb25zIHRha2VuIGJ5IHRoZSBIb3VzZSBhbmQgaXRzIENvbW1pdHRlZSBvbiBKdXN0aWNlIHdvdWxkIG5vIGxvbmdlciBhZmZlY3QgdGhlIGNvbnRyb3ZlcnN5LCBhbmQgdGhlIFN1cHJlbWUgQ291cnQgZm91bmQgdGhhdCBub25lIG9mIHRoZSByZWNvZ25pemVkIGV4Y2VwdGlvbnMgZm9yIGRlY2lkaW5nIG1vb3QgaXNzdWVzIGFwcGxpZWQuIiwKICAiY2xhaW1zIjogWwogICAgewogICAgICAidGV4dCI6ICJUaGUgU3VwcmVtZSBDb3VydCBydWxlZCB0aGF0IHRoZSBpc3N1ZXMgcmFpc2VkIGluIHRoZSBwZXRpdGlvbnMgaGFkIGJlY29tZSBtb290LCBvciBubyBsb25nZXIgcmVxdWlyZWQgcmVzb2x1dGlvbiwgYmVjYXVzZSB0aGUgSG91c2Ugb2YgUmVwcmVzZW50YXRpdmVzIGhhZCBhbHJlYWR5IGFwcHJvdmVkIGFuZCB0cmFuc21pdHRlZCB0aGUgQXJ0aWNsZXMgb2YgSW1wZWFjaG1lbnQgdG8gdGhlIFNlbmF0ZS4iLAogICAgICAiY2l0YXRpb25zIjogWwogICAgICAgIHsKICAgICAgICAgICJwYXNzYWdlX2lkIjogInBhc182NjI5NmRiYjc0NDFlZWQxM2E3NzM2NDc4ZjY4ODUwODMxM2M1MWQ3ZDUzZTljNTNmMWQxOWU4NmZmODNlZTY2IiwKICAgICAgICAgICJkb2NfaWQiOiAiZG9jXzZiZGQxMzVjZmI2NjRjODA4OWU5NDIzZTA1ZTg2Y2ZkIiwKICAgICAgICAgICJ0aXRsZSI6ICJTdXByZW1lIENvdXJ0IFByZXNzIEJyaWVmZXIg4oCUIFNhcmEgRHV0ZXJ0ZSBJbXBlYWNobWVudCBTZWN0aW9uIiwKICAgICAgICAgICJyZXBvcnRfZGF0ZSI6ICIyMDI2LTA4LTA1IiwKICAgICAgICAgICJzb3VyY2VfdXJsIjogImh0dHBzOi8vc2MuanVkaWNpYXJ5Lmdvdi5waC9wcmVzcy1icmllZmVyLWF1Z3VzdC0wNS0yMDI2LyIsCiAgICAgICAgICAicGFnZSI6IG51bGwsCiAgICAgICAgICAicXVvdGUiOiAiVGhlIFNDIHJ1bGVkIHRoYXQgdGhlIGlzc3VlcyByYWlzZWQgaW4gdGhlIHBldGl0aW9ucyBoYWQgYmVjb21lIG1vb3QsIG9yIG5vIGxvbmdlciByZXF1aXJlZCByZXNvbHV0aW9uLCBiZWNhdXNlIHRoZSBIb3VzZSBoYWQgYWxyZWFkeSBhcHByb3ZlZCBhbmQgdHJhbnNtaXR0ZWQgdGhlIEFydGljbGVzIG9mIEltcGVhY2htZW50IHRvIHRoZSBTZW5hdGUuIgogICAgICAgIH0KICAgICAgXQogICAgfSwKICAgIHsKICAgICAgInRleHQiOiAiVGhlIENvdXJ0IGV4cGxhaW5lZCB0aGF0IHRoZSB0cmFuc21pdHRhbCBtYXJrZWQgdGhlIGVuZCBvZiB0aGUgSG91c2UncyByb2xlIGluIHRoZSBpbXBlYWNobWVudCBwcm9jZXNzLCBtZWFuaW5nIHRoZSBhY3Rpb25zIHRoZSBwZXRpdGlvbmVycyBzb3VnaHQgdG8gc3RvcCBoYWQgYWxyZWFkeSBiZWVuIGNvbXBsZXRlZCwgYW5kIHRoZSBwcm9jZXNzIGhhZCBzaGlmdGVkIHRvIHRoZSBTZW5hdGUsIHdoaWNoIGhhZCBjb252ZW5lZCBhcyBhbiBpbXBlYWNobWVudCBjb3VydCBhbmQgYmVndW4gcHJvY2VlZGluZ3MuIiwKICAgICAgImNpdGF0aW9ucyI6IFsKICAgICAgICB7CiAgICAgICAgICAicGFzc2FnZV9pZCI6ICJwYXNfNjYyOTZkYmI3NDQxZWVkMTNhNzczNjQ3OGY2ODg1MDgzMTNjNTFkN2Q1M2U5YzUzZjFkMTllODZmZjgzZWU2NiIsCiAgICAgICAgICAiZG9jX2lkIjogImRvY182YmRkMTM1Y2ZiNjY0YzgwODllOTQyM2UwNWU4NmNmZCIsCiAgICAgICAgICAidGl0bGUiOiAiU3VwcmVtZSBDb3VydCBQcmVzcyBCcmllZmVyIOKAlCBTYXJhIER1dGVydGUgSW1wZWFjaG1lbnQgU2VjdGlvbiIsCiAgICAgICAgICAicmVwb3J0X2RhdGUiOiAiMjAyNi0wOC0wNSIsCiAgICAgICAgICAic291cmNlX3VybCI6ICJodHRwczovL3NjLmp1ZGljaWFyeS5nb3YucGgvcHJlc3MtYnJpZWZlci1hdWd1c3QtMDUtMjAyNi8iLAogICAgICAgICAgInBhZ2UiOiBudWxsLAogICAgICAgICAgInF1b3RlIjogIlRoZSBTQyBleHBsYWluZWQgdGhhdCB0aGUgSG91c2XigJlzIHRyYW5zbWl0dGFsIG9mIHRoZSBBcnRpY2xlcyBvZiBJbXBlYWNobWVudCBtYXJrZWQgdGhlIGVuZCBvZiB0aGUgSG91c2XigJlzIHJvbGUgaW4gdGhlIGltcGVhY2htZW50IHByb2Nlc3MgYW5kIHRoZSBpbml0aWF0aW9uIG9mIHRoZSBpbXBlYWNobWVudCBjYXNlLiBBcyBhIHJlc3VsdCwgdGhlIGFjdGlvbnMgdGhlIHBldGl0aW9uZXIgc291Z2h0IHRvIHN0b3AgaGFkIGFscmVhZHkgYmVlbiBjb21wbGV0ZWQuIgogICAgICAgIH0sCiAgICAgICAgewogICAgICAgICAgInBhc3NhZ2VfaWQiOiAicGFzXzY2Mjk2ZGJiNzQ0MWVlZDEzYTc3MzY0NzhmNjg4NTA4MzEzYzUxZDdkNTNlOWM1M2YxZDE5ZTg2ZmY4M2VlNjYiLAogICAgICAgICAgImRvY19pZCI6ICJkb2NfNmJkZDEzNWNmYjY2NGM4MDg5ZTk0MjNlMDVlODZjZmQiLAogICAgICAgICAgInRpdGxlIjogIlN1cHJlbWUgQ291cnQgUHJlc3MgQnJpZWZlciDigJQgU2FyYSBEdXRlcnRlIEltcGVhY2htZW50IFNlY3Rpb24iLAogICAgICAgICAgInJlcG9ydF9kYXRlIjogIjIwMjYtMDgtMDUiLAogICAgICAgICAgInNvdXJjZV91cmwiOiAiaHR0cHM6Ly9zYy5qdWRpY2lhcnkuZ292LnBoL3ByZXNzLWJyaWVmZXItYXVndXN0LTA1LTIwMjYvIiwKICAgICAgICAgICJwYWdlIjogbnVsbCwKICAgICAgICAgICJxdW90ZSI6ICJUaGUgU0MgZnVydGhlciBoZWxkIHRoYXQgdGhlIGltcGVhY2htZW50IHByb2Nlc3MgaGFkIGFscmVhZHkgbW92ZWQgdG8gdGhlIFNlbmF0ZSwgd2hpY2ggaGFkIGNvbnZlbmVkIGFzIGFuIGltcGVhY2htZW50IGNvdXJ0IGFuZCBoYWQgYmVndW4gcHJvY2VlZGluZ3MuIgogICAgICAgIH0KICAgICAgXQogICAgfSwKICAgIHsKICAgICAgInRleHQiOiAiQXMgYSByZXN1bHQsIGFueSBydWxpbmcgb24gdGhlIHZhbGlkaXR5IG9mIHRoZSBhY3Rpb25zIHRha2VuIGJ5IHRoZSBIb3VzZSBhbmQgaXRzIENvbW1pdHRlZSBvbiBKdXN0aWNlIHdvdWxkIG5vIGxvbmdlciBhZmZlY3QgdGhlIGNvbnRyb3ZlcnN5LCBhbmQgdGhlIFN1cHJlbWUgQ291cnQgZm91bmQgdGhhdCBub25lIG9mIHRoZSByZWNvZ25pemVkIGV4Y2VwdGlvbnMgZm9yIGRlY2lkaW5nIG1vb3QgaXNzdWVzIGFwcGxpZWQuIiwKICAgICAgImNpdGF0aW9ucyI6IFsKICAgICAgICB7CiAgICAgICAgICAicGFzc2FnZV9pZCI6ICJwYXNfNjYyOTZkYmI3NDQxZWVkMTNhNzczNjQ3OGY2ODg1MDgzMTNjNTFkN2Q1M2U5YzUzZjFkMTllODZmZjgzZWU2NiIsCiAgICAgICAgICAiZG9jX2lkIjogImRvY182YmRkMTM1Y2ZiNjY0YzgwODllOTQyM2UwNWU4NmNmZCIsCiAgICAgICAgICAidGl0bGUiOiAiU3VwcmVtZSBDb3VydCBQcmVzcyBCcmllZmVyIOKAlCBTYXJhIER1dGVydGUgSW1wZWFjaG1lbnQgU2VjdGlvbiIsCiAgICAgICAgICAicmVwb3J0X2RhdGUiOiAiMjAyNi0wOC0wNSIsCiAgICAgICAgICAic291cmNlX3VybCI6ICJodHRwczovL3NjLmp1ZGljaWFyeS5nb3YucGgvcHJlc3MtYnJpZWZlci1hdWd1c3QtMDUtMjAyNi8iLAogICAgICAgICAgInBhZ2UiOiBudWxsLAogICAgICAgICAgInF1b3RlIjogIkFueSBydWxpbmcgb24gdGhlIHZhbGlkaXR5IG9mIHRoZSBhY3Rpb25zIHRha2VuIGJ5IHRoZSBIb3VzZSBhbmQgaXRzIENvbW1pdHRlZSBvbiBKdXN0aWNlIHdvdWxkIG5vIGxvbmdlciBhZmZlY3QgdGhlIGNvbnRyb3ZlcnN5LiIKICAgICAgICB9LAogICAgICAgIHsKICAgICAgICAgICJwYXNzYWdlX2lkIjogInBhc182NjI5NmRiYjc0NDFlZWQxM2E3NzM2NDc4ZjY4ODUwODMxM2M1MWQ3ZDUzZTljNTNmMWQxOWU4NmZmODNlZTY2IiwKICAgICAgICAgICJkb2NfaWQiOiAiZG9jXzZiZGQxMzVjZmI2NjRjODA4OWU5NDIzZTA1ZTg2Y2ZkIiwKICAgICAgICAgICJ0aXRsZSI6ICJTdXByZW1lIENvdXJ0IFByZXNzIEJyaWVmZXIg4oCUIFNhcmEgRHV0ZXJ0ZSBJbXBlYWNobWVudCBTZWN0aW9uIiwKICAgICAgICAgICJyZXBvcnRfZGF0ZSI6ICIyMDI2LTA4LTA1IiwKICAgICAgICAgICJzb3VyY2VfdXJsIjogImh0dHBzOi8vc2MuanVkaWNpYXJ5Lmdvdi5waC9wcmVzcy1icmllZmVyLWF1Z3VzdC0wNS0yMDI2LyIsCiAgICAgICAgICAicGFnZSI6IG51bGwsCiAgICAgICAgICAicXVvdGUiOiAiV2hpbGUgdGhlIFNDIHJlY29nbml6ZWQgdGhhdCBpdCBtYXksIGluIGV4Y2VwdGlvbmFsIGNhc2VzLCBkZWNpZGUgaXNzdWVzIHRoYXQgaGF2ZSBiZWNvbWUgbW9vdCwgaXQgZm91bmQgdGhhdCBub25lIG9mIHRoZSByZWNvZ25pemVkIGV4Y2VwdGlvbnMgYXBwbGllZCBpbiB0aGlzIGNhc2UuIgogICAgICAgIH0KICAgICAgXQogICAgfQogIF0sCiAgIm1ldGEiOiB7CiAgICAicmV0cmlldmFsX21vZGUiOiAiYm0yNSIsCiAgICAiZWxhcHNlZF9tcyI6IDEyMTIzLAogICAgImNhY2hlZCI6IGZhbHNlCiAgfQp9"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "ae63f264418bb653de85-b696a37fbb32daff0275",
+          "file": "live-rag.spec.ts",
+          "line": 61,
+          "column": 5
+        },
+        {
+          "title": "backend upload validation and connection errors stay visible",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 150000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 6376,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-22T06:40:30.244Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "ae63f264418bb653de85-a0b018decc022f6a4742",
+          "file": "live-rag.spec.ts",
+          "line": 102,
+          "column": 5
+        },
+        {
+          "title": "held-out upload produces a real comparison with inspectable evidence on both sides",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 150000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 39680,
+                  "error": {
+                    "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m200\u001b[39m\nReceived: \u001b[31m502\u001b[39m",
+                    "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m200\u001b[39m\nReceived: \u001b[31m502\u001b[39m\n    at C:\\Users\\admin\\Desktop\\alma-hackathon\\web\\tests\\live-rag.spec.ts:145:29",
+                    "location": {
+                      "file": "C:\\Users\\admin\\Desktop\\alma-hackathon\\web\\tests\\live-rag.spec.ts",
+                      "column": 29,
+                      "line": 145
+                    },
+                    "snippet": "  143 |   const result = await response.json() as CompareResponse;\n  144 |   await testInfo.attach(\"real-comparison-response\", { body: JSON.stringify(result, null, 2), contentType: \"application/json\" });\n> 145 |   expect(response.status()).toBe(200);\n      |                             ^\n  146 |   expect(result.status).toBe(\"compared\");\n  147 |   expect(result.meta.cached).toBe(false);\n  148 |   const change = result.changes.find((c) => c.kind === \"updated\")!;"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "C:\\Users\\admin\\Desktop\\alma-hackathon\\web\\tests\\live-rag.spec.ts",
+                        "column": 29,
+                        "line": 145
+                      },
+                      "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m200\u001b[39m\nReceived: \u001b[31m502\u001b[39m\n\n  143 |   const result = await response.json() as CompareResponse;\n  144 |   await testInfo.attach(\"real-comparison-response\", { body: JSON.stringify(result, null, 2), contentType: \"application/json\" });\n> 145 |   expect(response.status()).toBe(200);\n      |                             ^\n  146 |   expect(result.status).toBe(\"compared\");\n  147 |   expect(result.meta.cached).toBe(false);\n  148 |   const change = result.changes.find((c) => c.kind === \"updated\")!;\n    at C:\\Users\\admin\\Desktop\\alma-hackathon\\web\\tests\\live-rag.spec.ts:145:29"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-22T06:40:36.656Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "real-comparison-response",
+                      "contentType": "application/json",
+                      "body": "ewogICJkZXRhaWwiOiB7CiAgICAiY29kZSI6ICJnZW5lcmF0aW9uX2ZhaWxlZCIsCiAgICAibWVzc2FnZSI6ICJUaGUgbW9kZWwgcmVzcG9uc2Ugd2FzIHRvbyBsb25nIHRvIGNvbXBsZXRlLiBUcnkgYSBuYXJyb3dlciBxdWVzdGlvbi4iCiAgfQp9"
+                    },
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "C:\\Users\\admin\\Desktop\\alma-hackathon\\web\\test-results\\live-rag-held-out-upload-p-d5d6c-able-evidence-on-both-sides\\error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "C:\\Users\\admin\\Desktop\\alma-hackathon\\web\\test-results\\live-rag-held-out-upload-p-d5d6c-able-evidence-on-both-sides\\trace.zip"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "C:\\Users\\admin\\Desktop\\alma-hackathon\\web\\tests\\live-rag.spec.ts",
+                    "column": 29,
+                    "line": 145
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "ae63f264418bb653de85-b7840880736f28ea3e46",
+          "file": "live-rag.spec.ts",
+          "line": 126,
+          "column": 5
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-10-22T06:39:58.655Z",
+    "duration": 81012.4,
+    "expected": 3,
+    "skipped": 0,
+    "unexpected": 1,
+    "flaky": 0
+  }
+}

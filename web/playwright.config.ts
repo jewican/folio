@@ -1,5 +1,8 @@
 import { defineConfig } from "@playwright/test";
 
+const backendPython = process.env.FOLIO_TEST_PYTHON ??
+  (process.platform === "win32" ? "../eval/.venv/Scripts/python.exe" : "../.venv/bin/python");
+
 export default defineConfig({
   testDir: "./tests",
   workers: 1,
@@ -16,7 +19,7 @@ export default defineConfig({
   },
   webServer: [
     {
-      command: "../.venv/bin/python tests/start-backend.py",
+      command: `"${backendPython}" tests/start-backend.py`,
       url: "http://127.0.0.1:8000/health",
       reuseExistingServer: false,
       timeout: 30_000,

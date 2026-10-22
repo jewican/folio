@@ -134,12 +134,18 @@ Return ONLY JSON with exactly {"criteria":[{"index":0,"passed":true,"reason":"..
 "support":[{"index":0,"passed":true,"reason":"..."}]}. Include each input index once.
 INPUT_JSON:
 '''
+    # Send each canonical passage once, even when multiple claims cite it.
+    # Every original criterion and support unit still receives its own verdict.
+    stored = {e['stored_passage']['passage_id']: e['stored_passage']
+              for unit in evidence_units for e in unit['evidence']}
     payload = {'question': case['question'], 'expected_answer': case['expected_answer'],
                'expected_status': case['expected_status'],
                'criteria': [{'index': i, 'text': text} for i, text in enumerate(criteria)],
                'gold_evidence': case['supporting_passages'],
-               'actual_response': response,
-               'evidence_units': [{'index': i, **unit} for i, unit in enumerate(evidence_units)]}
+               'actual_response': response, 'stored_passages': list(stored.values()),
+               'evidence_units': [{'index': i, 'claim': unit['claim'],
+                                   'citations': [e['citation'] for e in unit['evidence']]}
+                                  for i, unit in enumerate(evidence_units)]}
     started = perf_counter()
     generated = model.generate(prompt + json.dumps(payload, ensure_ascii=False), json_output=True)
     row['judge_raw_response'] = generated.text
@@ -272,9 +278,11 @@ def run_pipeline(suite, documents, corpus, report):
     # evaluator's separate call; production generation keeps its exact settings.
     judge = replace(model, timeout_seconds=120, max_output_tokens=8192)
     report['model'] = {'id': model.model_id, 'max_output_tokens': model.max_output_tokens,
-                       'timeout_seconds': model.timeout_seconds}
+                       'timeout_seconds': model.timeout_seconds,
+                       'thinking_level': 'low' if model.model_id.startswith('gemini-3') else 'provider_default'}
     report['judge_model'] = {'id': judge.model_id, 'max_output_tokens': judge.max_output_tokens,
-                             'timeout_seconds': judge.timeout_seconds}
+                             'timeout_seconds': judge.timeout_seconds,
+                             'thinking_level': report['model']['thinking_level']}
     names = ('FOLIO_DATA_DIR', 'FOLIO_DATABASE_PATH', 'FOLIO_MAX_UPLOAD_BYTES')
     previous = {key: os.environ.get(key) for key in names}
     mapping = {}
@@ -349,7 +357,7 @@ def write_report(report, output):
     lines = ['# Folio live BM25 evaluation', '', f"Run: {report['started_at']} (UTC). Commit: `{report['commit']}`.",
              '', f'Primary cases: **{passed}/10 PASS**. Requests include two additional initial controls.',
              '', 'Production FastAPI TestClient → real uploads/SQLite → BM25 → configured Gemini. No Jev, mocks, '
-             'dependency overrides, saved answers, or RAG changes. API latency excludes retrieval replay and grading.',
+             'dependency overrides or saved answers. API latency excludes retrieval replay and grading.',
              '', 'Every run uses a new temporary dataset, rebuilds the index from that dataset at each phase, '
              'and removes its uploads/database afterward. The normal application dataset is never reset or used.',
              '', f"Fresh empty dataset: {report.get('fresh_dataset_verified', False)}. "

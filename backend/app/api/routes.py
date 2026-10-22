@@ -1,4 +1,4 @@
-"""Document/evidence endpoints and deferred generation endpoints."""
+"""Document uploads, canonical evidence, grounded answers and report comparison."""
 from datetime import date, datetime, timezone
 import os
 import re
@@ -14,13 +14,13 @@ from app.contracts import (
     AskRequest, AskResponse, CompareRequest, CompareResponse,
     Document, DocumentList, Health, Passage, ResponseMeta,
 )
-from app.generation.answer import generate_answer
+from app.generation.answer import AnswerResult, generate_answer
+from app.generation.compare import generate_comparison
 from app.generation.client import GenerationError
 from app.storage.database import Storage, get_storage
 from app.storage.ingestion import Ingestor, InvalidDocument, ExtractionError, get_ingestor
 
 router = APIRouter()
-STUB_RESPONSE = {501: {"description": "Feature implementation has not started"}}
 
 
 def iso_date(value):
@@ -30,13 +30,6 @@ def iso_date(value):
 
 
 ReportDate = Annotated[date, BeforeValidator(iso_date)]
-
-
-def not_implemented() -> None:
-    raise HTTPException(
-        status_code=501,
-        detail={"code": "not_implemented", "message": "Contract defined; feature not implemented."},
-    )
 
 
 @router.get("/health", response_model=Health, tags=["system"])
@@ -130,11 +123,12 @@ def ask(request: AskRequest, storage: Annotated[Storage, Depends(get_storage)]):
     if any(p.doc_id not in request.doc_ids or storage.get_passage(p.passage_id) != p
            for p in passages):
         raise GenerationError(reason="invalid_evidence")
-    claims = generate_answer(request.question, passages) if passages else []
+    result = generate_answer(request.question, passages) if passages else AnswerResult([])
+    claims = result.claims
     return AskResponse(
         question=request.question, doc_ids=request.doc_ids,
         status="answered" if claims else "insufficient_evidence",
-        answer=" ".join(claim.text for claim in claims) if claims else (
+        answer=" ".join(claim.text for claim in claims) if claims else result.explanation or (
             "The selected documents do not provide enough evidence to answer this question."
         ),
         claims=claims,
@@ -142,9 +136,24 @@ def ask(request: AskRequest, storage: Annotated[Storage, Depends(get_storage)]):
     )
 
 
-@router.post("/compare", response_model=CompareResponse, responses=STUB_RESPONSE, tags=["answers"])
-def compare(request: CompareRequest):
-    not_implemented()
+@router.post("/compare", response_model=CompareResponse, tags=["answers"])
+def compare(request: CompareRequest, storage: Annotated[Storage, Depends(get_storage)]):
+    started = perf_counter()
+    documents = {d.doc_id: d for d in storage.list_documents()}
+    selected = [request.older_doc_id, request.newer_doc_id]
+    if not set(selected) <= documents.keys():
+        raise upload_error(404, 'document_not_found', 'A selected document was not found.')
+    if documents[selected[0]].report_date >= documents[selected[1]].report_date:
+        raise upload_error(422, 'invalid_selection', 'Select an earlier and a later report date.')
+    passages = storage.retrieve(request.question, selected)
+    if any(p.doc_id not in selected or storage.get_passage(p.passage_id) != p for p in passages):
+        raise GenerationError(reason='invalid_evidence')
+    if {p.doc_id for p in passages} == set(selected):
+        status, summary, changes = generate_comparison(request.question, passages, *selected)
+    else:
+        status, summary, changes = 'insufficient_evidence', 'Relevant evidence is needed from both selected reports.', []
+    return CompareResponse(**request.model_dump(), status=status, summary=summary, changes=changes,
+                           meta=ResponseMeta(elapsed_ms=round((perf_counter() - started) * 1000), cached=False))
 
 
 @router.get("/passages/{id}", response_model=Passage, tags=["evidence"])
