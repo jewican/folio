@@ -189,9 +189,13 @@ function ReportPicker({
   documents: FolioDocument[];
   onChange: (docId: string) => void;
 }) {
+  const id = `report-picker-${label.toLowerCase().replace(/\s+/g, "-")}`;
   return (
-    <label className="flex min-w-0 flex-col gap-1.5">
-      <span className="flex items-center gap-1.5 text-[11px] font-medium text-[#6b7684]">
+    <div className="flex min-w-0 flex-col gap-1.5">
+      <label
+        htmlFor={id}
+        className="flex items-center gap-1.5 text-[11px] font-medium text-[#6b7684]"
+      >
         {value && (
           <span
             aria-hidden
@@ -200,8 +204,9 @@ function ReportPicker({
           />
         )}
         {label}
-      </span>
+      </label>
       <select
+        id={id}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         disabled={documents.length === 0}
@@ -214,7 +219,7 @@ function ReportPicker({
           </option>
         ))}
       </select>
-    </label>
+    </div>
   );
 }
 
