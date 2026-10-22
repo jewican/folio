@@ -55,7 +55,7 @@ The application and index run on the demo laptop. Gemini and optional Jev still 
 
 ## W1 — Backend, AI, and integration
 
-**Owner:** ____________________  
+**Owner:** Codex (model client setup for this task)
 **Owns:** API routes, generation, storage, shared contracts, root configuration, and integration.
 
 | Time | Bundled responsibility |
