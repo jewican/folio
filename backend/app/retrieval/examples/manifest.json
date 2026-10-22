@@ -1,0 +1,24 @@
+{
+  "documents": [
+    {
+      "doc_id": "z-older",
+      "title": "Kristy advisory 005",
+      "report_date": "2024-10-22",
+      "file": "kristy-2024-10-22.txt",
+      "source_url": "https://www.nhc.noaa.gov/archive/2024/ep12/ep122024.public.005.shtml",
+      "heldout": false,
+      "text_type": "verbatim_bulletin_excerpt",
+      "sha256": "6372ccd47e16f59f979d281a2df4d79f36ce77abd2c342b66163912873162862"
+    },
+    {
+      "doc_id": "a-newer",
+      "title": "Kristy advisory 024",
+      "report_date": "2024-10-27",
+      "file": "kristy-2024-10-27.txt",
+      "source_url": "https://www.nhc.noaa.gov/archive/2024/ep12/ep122024.public.024.shtml",
+      "heldout": true,
+      "text_type": "verbatim_bulletin_excerpt",
+      "sha256": "9cde8339385c22ec08eff296a4bfea056aa73498dd2fafadc457232eddd7fe1d"
+    }
+  ]
+}

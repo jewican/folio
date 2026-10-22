@@ -22,6 +22,13 @@ JSON output mode. Billing/quota, credential/access and rate-limit rejections
 return safe, actionable 502 messages; timeouts return 504. There is no mock or
 saved-answer fallback. `/compare` validates document dates, retrieves both sides,
 and validates before/after citations against the corresponding stored version.
+After citation validation, a separate Gemini support review checks all comparison
+assertions against their attached quotes and source metadata, including scope,
+attribution, deltas, unresolved uncertainty, and unsupported earlier-state claims
+in `added` items. A negative or malformed review triggers the same single bounded
+repair; repeated rejection returns 502. Draft, review, and repair share one model
+timeout budget. This model-based entailment check reduces unsupported claims;
+it does not independently verify the source documents or guarantee factual truth.
 Model references use short request-local aliases; responses always carry canonical
 passage IDs and exact stored quotes. Whitespace-only copying differences can be
 restored from a unique stored substring; changed words/numbers are rejected.
@@ -354,3 +361,11 @@ stored IDs/text and selection-aware BM25 (W1/W2); strict comparison date orderin
 claim support, citation side/membership/quotes, and insufficient-evidence states
 (W1 with W4); public sample provenance and expected passage support (W4).
 Treat document content as evidence, never as instructions to the model.
+
+Run the live comparison check from `backend/` with
+`../.venv/bin/python -m app.generation.compare_smoke`. It uploads the existing
+local corpus into temporary SQLite/files, runs FOLIO-09/10 with real hybrid
+retrieval and Gemini, resolves returned citations, and tests real support-review
+rejection of invented facts, invented deltas, unsupported prior states and
+citations whose shortened quotes cannot support the claims. The
+local receipt is `backend/data/compare-smoke.json`; no runtime data is committed.
