@@ -1,9 +1,10 @@
-"""Dependency-free BM25 over stored shared Passage objects."""
+"""Selection-scoped rank-bm25 retrieval over stored shared Passage objects."""
 
-from collections import Counter
 from collections.abc import Iterable, Sequence
-from math import log
+from functools import lru_cache
 import re
+
+from rank_bm25 import BM25Plus
 
 from app.contracts import Passage
 
@@ -13,11 +14,7 @@ def _tokens(text: str) -> list[str]:
 
 
 class BM25Index:
-    """Build once from W1's stored passages; rebuild after uploads/restart.
-
-    Selection-scoped statistics ensure unselected reports cannot affect ranking.
-    W1 validates ready document existence and comparison date ordering.
-    """
+    """Snapshot saved passages; cache up to 32 explicitly selected corpora."""
 
     def __init__(self, passages: Iterable[Passage]):
         self._rows = []
@@ -27,34 +24,52 @@ class BM25Index:
                 raise ValueError("Duplicate passage_id in index")
             seen.add(passage.passage_id)
             stored = passage.model_copy(deep=True)
-            counts = Counter(_tokens(stored.text))
-            self._rows.append((stored, counts, sum(counts.values())))
+            self._rows.append((stored, _tokens(stored.text)))
+        self._selection = lru_cache(maxsize=32)(self._build_selection)
 
-    def retrieve(self, question: str, doc_ids: Sequence[str], top_k: int = 5) -> list[Passage]:
-        """Return ranked exact passages with positive lexical matches only."""
-        if isinstance(doc_ids, str) or not doc_ids or len(set(doc_ids)) != len(doc_ids):
-            raise ValueError("Explicit distinct doc_ids are required")
-        if isinstance(top_k, bool) or not isinstance(top_k, int) or top_k < 1:
-            raise ValueError("top_k must be a positive integer")
+    def _build_selection(self, document_ids: tuple[str, ...]):
+        selected = set(document_ids)
+        rows = [row for row in self._rows if row[0].doc_id in selected and row[1]]
+        # BM25Plus has positive IDF even for a one-passage corpus. delta=0
+        # removes its additive baseline; unmatched passages are excluded below.
+        scorer = BM25Plus([row[1] for row in rows], delta=0) if rows else None
+        return rows, scorer
+
+    def retrieve(self, question: str, document_ids: Sequence[str], k: int = 6,
+                 mode: str = "bm25") -> list[Passage]:
+        if mode != "bm25":
+            raise ValueError("Only bm25 retrieval is supported")
+        if (isinstance(document_ids, str) or not document_ids
+                or any(not isinstance(id, str) or not id for id in document_ids)
+                or len(set(document_ids)) != len(document_ids)):
+            raise ValueError("Explicit distinct document_ids are required")
+        if isinstance(k, bool) or not isinstance(k, int) or k < 1:
+            raise ValueError("k must be a positive integer")
         if not question.strip():
             raise ValueError("question must not be blank")
-        selected = set(doc_ids)
-        rows = [row for row in self._rows if row[0].doc_id in selected]
-        if not rows:
+        rows, scorer = self._selection(tuple(sorted(document_ids)))
+        terms = sorted(set(_tokens(question)))
+        if scorer is None or not terms:
             return []
-        terms = set(_tokens(question))
-        avg_length = sum(row[2] for row in rows) / len(rows)
-        if not avg_length:
-            return []
-        frequency = Counter(term for _, counts, _ in rows for term in counts if term in terms)
-        ranked = []
-        for passage, counts, length in rows:
-            score = 0.0
-            for term in sorted(terms & counts.keys()):
-                idf = log(1 + (len(rows) - frequency[term] + 0.5) / (frequency[term] + 0.5))
-                tf = counts[term]
-                score += idf * tf * 2.5 / (tf + 1.5 * (0.25 + 0.75 * length / avg_length))
-            if score > 0:
-                ranked.append((score, passage))
+        scores = scorer.get_scores(terms)
+        ranked = [(float(score), passage) for score, (passage, tokens) in zip(scores, rows)
+                  if set(terms).intersection(tokens)]
         ranked.sort(key=lambda item: (-item[0], item[1].passage_id))
-        return [passage.model_copy(deep=True) for _, passage in ranked[:top_k]]
+        return [passage.model_copy(deep=True) for _, passage in ranked[:k]]
+
+
+_index = BM25Index([])
+
+
+def rebuild_index(passages: Iterable[Passage]) -> BM25Index:
+    """W1 calls after loading/publishing saved passages, including on restart."""
+    global _index
+    replacement = BM25Index(passages)
+    _index = replacement
+    return replacement
+
+
+def retrieve(question: str, document_ids: Sequence[str], k: int = 6,
+             mode: str = "bm25") -> list[Passage]:
+    """Return ranked contract passages from the current process-local index."""
+    return _index.retrieve(question, document_ids, k, mode)

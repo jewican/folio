@@ -1,7 +1,7 @@
 import pytest
 
 from app.contracts import Passage
-from app.retrieval import BM25Index
+from app.retrieval import BM25Index, rebuild_index, retrieve
 
 
 def passage(id, doc, text):
@@ -40,3 +40,46 @@ def test_explicit_selection_required(ids, k):
 def test_duplicate_passage_ids_rejected():
     with pytest.raises(ValueError):
         BM25Index([passage("a", "old", "One"), passage("a", "new", "Two")])
+
+
+def test_public_api_defaults_modes_and_rebuild():
+    rows = [passage(str(n), "old", "evidence " * (n + 1)) for n in range(8)]
+    try:
+        rebuild_index(rows)
+        assert len(retrieve("evidence", ["old"])) == 6
+        assert len(retrieve("evidence", ["old"], k=2)) == 2
+        with pytest.raises(ValueError, match="bm25"):
+            retrieve("evidence", ["old"], mode="vector")
+        rebuild_index([])
+        assert retrieve("evidence", ["old"]) == []
+    finally:
+        rebuild_index([])
+
+
+def test_ranking_uses_rank_bm25():
+    from rank_bm25 import BM25Plus
+    rows = [passage("a", "old", "funds funds report"),
+            passage("b", "old", "funds report report report report"),
+            passage("c", "old", "unrelated")]
+    scores = BM25Plus([p.text.split() for p in rows], delta=0).get_scores(["funds"])
+    expected = sorted(rows[:2], key=lambda p: -scores[rows.index(p)])
+    assert BM25Index(rows).retrieve("funds", ["old"]) == expected
+    assert BM25Index([passage("empty", "old", "...")]).retrieve("funds", ["old"]) == []
+
+
+def test_real_document_retrieval():
+    from pathlib import Path
+    from app.ingestion import ingest_document
+
+    path = Path(__file__).resolve().parents[2] / ".local/articles-of-impeachment-sara-duterte-2026.txt"
+    if not path.exists():
+        pytest.skip("Private local sample is not committed")
+    rows = ingest_document(path, dict(doc_id="real", title="Articles of impeachment",
+                                     report_date="2026-10-20"))
+    index = BM25Index(rows + [passage("held-out", "later", "confidential funds liquidation")])
+    result = index.retrieve("confidential funds liquidation", ["real"])
+    assert len(result) == 6
+    assert all(p.doc_id == "real" and p in rows for p in result)
+    assert "confidential funds" in result[0].text.lower()
+    assert all(p.page is None for p in result)
+    assert index.retrieve("confidential funds", ["later"])[0].passage_id == "held-out"

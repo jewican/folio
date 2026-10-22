@@ -1,11 +1,15 @@
-"""Local UTF-8 TXT extraction; no OCR, fetching, or persistence."""
+"""Local PDF/TXT extraction; no OCR, fetching, or persistence."""
 
 from dataclasses import dataclass
 from datetime import date
 from hashlib import sha256
 import json
+from io import BytesIO
 from pathlib import Path
 import re
+
+from pypdf import PdfReader
+from pydantic import BaseModel, Field, HttpUrl
 
 from app.contracts import Passage
 
@@ -63,20 +67,90 @@ def extract_text_pages(doc_id: str, path: str | Path) -> list[ExtractedPage]:
     return pages
 
 
-def _chunks(text: str, max_chars: int):
-    """Contiguous, lossless slices, preferring paragraph/word boundaries."""
-    while text:
-        end = min(len(text), max_chars)
-        if end < len(text):
-            boundary = text.rfind("\n\n", 0, end)
-            if boundary >= end // 2:
-                end = boundary + 2
-            else:
-                spaces = list(re.finditer(r"\s+", text[:end]))
-                if spaces and spaces[-1].end() >= end // 2:
-                    end = spaces[-1].end()
-        yield text[:end]
-        text = text[end:]
+def extract_pdf_pages(doc_id: str, path: str | Path) -> list[ExtractedPage]:
+    """Extract physical 1-based pages; reject encrypted or textless PDFs."""
+    with Path(path).open("rb") as source:
+        data = source.read(MAX_FILE_BYTES + 1)
+    if len(data) > MAX_FILE_BYTES:
+        raise ExtractionError("upload_too_large", "File exceeds 10 MiB.")
+    if not data.startswith(b"%PDF-"):
+        raise ExtractionError("unsupported_file_type", "Content is not PDF.")
+    try:
+        reader = PdfReader(BytesIO(data))
+        if reader.is_encrypted:
+            raise ExtractionError("invalid_document", "Encrypted PDFs are unsupported.")
+        pages = [ExtractedPage(doc_id, number, page.extract_text() or "")
+                 for number, page in enumerate(reader.pages, 1)]
+    except ExtractionError:
+        raise
+    except Exception as exc:
+        raise ExtractionError("invalid_document", "PDF could not be read.") from exc
+    if not any(page.text.strip() for page in pages):
+        raise ExtractionError("invalid_document", "PDF contains no extractable text; OCR is unsupported.")
+    return pages
+
+
+def _chunks(text: str):
+    """Lossless slices near 400 words, preferring paragraphs within 300–500.
+
+    Short pages/tails stay short. Oversized paragraphs split at word boundaries.
+    """
+    words = list(re.finditer(r"\S+", text))
+    start_word = 0
+    start_char = 0
+    while len(words) - start_word > 500:
+        candidates = []
+        for size in range(300, 501):
+            left = words[start_word + size - 1].end()
+            right = words[start_word + size].start()
+            if re.search(r"\r?\n[^\S\r\n]*\r?\n", text[left:right]):
+                candidates.append(size)
+        # Balance an unstructured long paragraph to avoid tiny final fragments.
+        remaining = len(words) - start_word
+        target = min(400, max(300, remaining // ((remaining + 499) // 500)))
+        size = min(candidates, key=lambda n: (abs(n - target), n)) if candidates else target
+        end_char = words[start_word + size].start()
+        yield text[start_char:end_char]
+        start_word += size
+        start_char = end_char
+    if text[start_char:].strip():
+        yield text[start_char:]
+
+
+class IngestionMetadata(BaseModel):
+    """Upload metadata supplied by W1; additional Document fields are ignored."""
+
+    doc_id: str = Field(min_length=1, max_length=128)
+    title: str = Field(min_length=1, max_length=200, pattern=r"\S")
+    report_date: date
+    source_url: HttpUrl | None = None
+
+
+def ingest_document(file_path: str | Path, metadata: dict | BaseModel) -> list[Passage]:
+    """Extract contract passages without publishing them to storage or retrieval."""
+    if isinstance(metadata, BaseModel):
+        metadata = metadata.model_dump()
+    meta = IngestionMetadata.model_validate(metadata)
+    path = Path(file_path)
+    suffix = path.suffix.lower()
+    if suffix == ".pdf":
+        pages = extract_pdf_pages(meta.doc_id, path)
+    elif suffix == ".txt":
+        pages = extract_text_pages(meta.doc_id, path)
+    else:
+        raise ExtractionError("unsupported_file_type", "Only PDF and UTF-8 TXT are supported.")
+    passages = []
+    for page in pages:
+        for text in _chunks(page.text):
+            passage = Passage(
+                passage_id="pending", **meta.model_dump(),
+                page=page.page if suffix == ".pdf" else None, text=text,
+            )
+            identity = [len(passages), passage.model_dump(mode="json")]
+            digest = sha256(json.dumps(identity, ensure_ascii=False, sort_keys=True).encode("utf-8")).hexdigest()
+            passage.passage_id = "pas_" + digest
+            passages.append(passage)
+    return passages
 
 
 def extract_passages(
@@ -86,7 +160,6 @@ def extract_passages(
     title: str,
     report_date: date | str,
     source_url: str | None = None,
-    max_chars: int = 1600,
 ) -> list[Passage]:
     """Return shared Passage models for W1 to store, using TXT page=None.
 
@@ -94,21 +167,5 @@ def extract_passages(
     position, text and metadata; rebuilding retrieval uses stored IDs unchanged.
     Report date must be provided by the uploader, never inferred from content.
     """
-    if isinstance(max_chars, bool) or not isinstance(max_chars, int) or max_chars < 100:
-        raise ValueError("max_chars must be an integer of at least 100")
-    if not title.strip() or len(title) > 200:
-        raise ValueError("title must contain 1–200 characters and not be blank")
-    passages = []
-    for page in extract_text_pages(doc_id, path):
-        for text in _chunks(page.text, max_chars):
-            if not text.strip():
-                continue
-            passage = Passage(
-                passage_id="pending", doc_id=doc_id, title=title,
-                report_date=report_date, source_url=source_url, page=None, text=text,
-            )
-            identity = [len(passages), passage.model_dump(mode="json")]
-            digest = sha256(json.dumps(identity, ensure_ascii=False, sort_keys=True).encode("utf-8")).hexdigest()
-            passage.passage_id = "pas_" + digest
-            passages.append(passage)
-    return passages
+    return ingest_document(path, dict(doc_id=doc_id, title=title,
+                                     report_date=report_date, source_url=source_url))

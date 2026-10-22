@@ -1,0 +1,3 @@
+# W2 dependency handoff: W1 should include this file in backend/requirements.txt.
+pypdf==6.21.2
+rank-bm25==0.2.2
