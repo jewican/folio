@@ -10,12 +10,15 @@ import {
   type View,
 } from "@/components/folio/document-sidebar";
 import { EvidencePanel } from "@/components/folio/evidence-panel";
+import { UploadDialog } from "@/components/folio/upload-dialog";
 import {
   MAX_ASK_DOCUMENTS,
   USING_SAMPLE_DATA,
   ask,
   errorMessage,
   listDocuments,
+  uploadDocument,
+  type UploadRequest,
 } from "@/lib/api";
 import type { Citation, FolioDocument } from "@/lib/types";
 
@@ -32,6 +35,8 @@ export function FolioApp() {
   const [activeCitation, setActiveCitation] = useState<Citation | null>(null);
   const [navOpen, setNavOpen] = useState(false);
   const [evidenceOpen, setEvidenceOpen] = useState(false);
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [newIds, setNewIds] = useState<string[]>([]);
 
   const askRun = useRef(0);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -81,6 +86,22 @@ export function FolioApp() {
           ? current
           : [...current, docId],
     );
+  }
+
+  async function upload(request: UploadRequest) {
+    const doc = await uploadDocument(request);
+    // Keep GET /documents order: report_date, then doc_id.
+    setDocuments((current) =>
+      [...(current ?? []), doc].sort(
+        (a, b) =>
+          a.report_date.localeCompare(b.report_date) || a.doc_id.localeCompare(b.doc_id),
+      ),
+    );
+    setSelectedIds((current) =>
+      current.length < MAX_ASK_DOCUMENTS ? [...current, doc.doc_id] : current,
+    );
+    setNewIds((current) => [...current, doc.doc_id]);
+    setUploadOpen(false);
   }
 
   async function askQuestion(question: string) {
@@ -150,7 +171,16 @@ export function FolioApp() {
           }}
           open={navOpen}
           onClose={() => setNavOpen(false)}
+          onUploadClick={() => {
+            setNavOpen(false);
+            setUploadOpen(true);
+          }}
+          newIds={newIds}
         />
+
+        {uploadOpen && (
+          <UploadDialog onUpload={upload} onClose={() => setUploadOpen(false)} />
+        )}
 
         <main className="flex min-w-0 flex-1 flex-col">
           <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-[#e4e5e4] bg-[#f8f8f6cc] px-3 backdrop-blur-md sm:h-16 sm:px-8">
