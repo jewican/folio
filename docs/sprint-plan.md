@@ -28,7 +28,7 @@ Our demonstration starts with two dated reports. We ask a question, inspect its 
 
 The application and index run on the demo laptop. Gemini and optional Jev still require internet access and receive selected document excerpts.
 
-- **Latency:** index each document once, retrieve a small context, and use one Gemini call per answer or comparison. Measure uncached response times. Jev must have a timeout and a baseline fallback.
+- **Latency:** index each document once and retrieve a small context. Answers use one Gemini generation call; comparisons also use a separate support review to reject unsupported claims. Draft/review and the single permitted repair share one bounded model timeout. Measure uncached response times. Jev must have a timeout and a baseline fallback.
 - **Cost:** cap context and output, use sample responses during UI development, and cache repeated requests. Cache keys must include the selected document versions, retrieval mode, model, and prompt version.
 - **Security:** keys stay in backend environment variables, outside Git and frontend code. Use public sample documents, restrict upload type/size, and treat document text as evidence rather than instructions.
 - **Scope:** hosted databases, login, crawling, OCR, and automatic background news monitoring are outside this sprint. Add no new infrastructure after setup.
