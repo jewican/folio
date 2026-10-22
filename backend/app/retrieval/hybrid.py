@@ -1,5 +1,6 @@
 """Gemini Embedding 2 semantic ranking, fused with the existing BM25 index."""
 from dataclasses import dataclass
+from collections.abc import Sequence
 from hashlib import sha256
 import math
 import os
@@ -126,6 +127,22 @@ class HybridRetriever:
     def rank(self, question: str, passages: list[Passage], index: BM25Index,
              doc_ids: list[str], k: int = 6) -> list[list[Passage]]:
         """Fuse independently per document, preserving W1's balanced context."""
+        if (isinstance(doc_ids, str) or not isinstance(doc_ids, Sequence) or not doc_ids
+                or any(not isinstance(doc_id, str) or not doc_id for doc_id in doc_ids)
+                or len(set(doc_ids)) != len(doc_ids)):
+            raise ValueError("Explicit distinct document_ids are required")
+        if isinstance(k, bool) or not isinstance(k, int) or k < 1:
+            raise ValueError("k must be a positive integer")
+        if not question.strip():
+            raise ValueError("question must not be blank")
+        # Apply selection before cache reads, backfill and provider calls. A caller
+        # may supply a whole-corpus snapshot, including reports from the future.
+        passages = [p.model_copy(deep=True) for p in passages if p.doc_id in doc_ids]
+        canonical = {p.passage_id: p for p in passages}
+        if len(canonical) != len(passages):
+            raise ValueError("Duplicate passage_id in selection")
+        if not passages:
+            return [[] for _ in sorted(doc_ids)]
         deadline = perf_counter() + 20
         client = EmbeddingClient.from_env()
         vectors = self.prepare(passages, client, deadline)
@@ -139,6 +156,36 @@ class HybridRetriever:
             semantic = sorted(rows, key=lambda p: (
                 -sum(a * b for a, b in zip(query, vectors[p.passage_id])), p.passage_id))
             candidates = max(20, k)
-            rankings.append(rrf([index.retrieve(question, [doc_id], k=candidates),
+            lexical = [p for p in index.retrieve(question, [doc_id], k=candidates)
+                       if canonical.get(p.passage_id) == p]
+            rankings.append(rrf([lexical,
                                  semantic[:candidates]], k))
         return rankings
+
+    def compare(self, question: str, passages: list[Passage], index: BM25Index,
+                older_doc_id: str, newer_doc_id: str, k: int = 3,
+                mode: str = "hybrid") -> tuple[list[Passage], list[Passage]]:
+        """Return (older evidence, newer evidence), with a separate budget per side.
+
+        Dates come from stored passages, never upload time or ID sort order.
+        Missing or inconsistent dates fail closed before contacting Gemini.
+        Embedding errors propagate for the caller's existing BM25 fallback.
+        """
+        if not older_doc_id or not newer_doc_id or older_doc_id == newer_doc_id:
+            raise ValueError("Explicit distinct older/newer document IDs are required")
+        selected = [older_doc_id, newer_doc_id]
+        rows = [p for p in passages if p.doc_id in selected]
+        dates = [{p.report_date for p in rows if p.doc_id == doc_id}
+                 for doc_id in selected]
+        if any(len(values) != 1 for values in dates):
+            raise ValueError("Both reports require one consistent stored report date")
+        if next(iter(dates[0])) >= next(iter(dates[1])):
+            raise ValueError("Older report date must be strictly before newer report date")
+        if mode == "bm25":
+            # Build from the same selected snapshot used for date validation.
+            scoped = BM25Index(rows)
+            return tuple(scoped.retrieve(question, [doc_id], k=k) for doc_id in selected)
+        if mode != "hybrid":
+            raise ValueError("Only bm25 and hybrid retrieval are supported")
+        rankings = dict(zip(sorted(selected), self.rank(question, rows, index, selected, k)))
+        return rankings[older_doc_id], rankings[newer_doc_id]
