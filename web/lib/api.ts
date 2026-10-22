@@ -247,6 +247,14 @@ async function toApiError(response: Response): Promise<ApiError> {
       response.status,
     );
   }
+  // Contract stubs answer 501 until the owning workstream implements them.
+  if (detail && !Array.isArray(detail) && detail.code === "not_implemented") {
+    return new ApiError(
+      "This feature isn't available on the backend yet.",
+      detail.code,
+      response.status,
+    );
+  }
   if (detail && typeof detail.message === "string") {
     return new ApiError(detail.message, detail.code, response.status);
   }
