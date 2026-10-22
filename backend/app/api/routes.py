@@ -1,17 +1,32 @@
-"""Six agreed endpoints; W1 replaces feature stubs after foundation setup."""
-from datetime import date
+"""Document/evidence endpoints and deferred generation endpoints."""
+from datetime import date, datetime, timezone
+import os
+import re
+from pathlib import Path
 from typing import Annotated
+from uuid import uuid4
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
-from pydantic import HttpUrl
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from pydantic import BeforeValidator, HttpUrl
 
 from app.contracts import (
     AskRequest, AskResponse, CompareRequest, CompareResponse,
     Document, DocumentList, Health, Passage,
 )
+from app.storage.database import Storage, get_storage
+from app.storage.ingestion import Ingestor, InvalidDocument, get_ingestor
 
 router = APIRouter()
 STUB_RESPONSE = {501: {"description": "Feature implementation has not started"}}
+
+
+def iso_date(value):
+    if not isinstance(value, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
+        raise ValueError("Report date must use YYYY-MM-DD")
+    return value
+
+
+ReportDate = Annotated[date, BeforeValidator(iso_date)]
 
 
 def not_implemented() -> None:
@@ -26,19 +41,75 @@ def health():
     return Health()
 
 
-@router.get("/documents", response_model=DocumentList, responses=STUB_RESPONSE, tags=["documents"])
-def list_documents():
-    not_implemented()
+@router.get("/documents", response_model=DocumentList, tags=["documents"])
+def list_documents(storage: Annotated[Storage, Depends(get_storage)]):
+    return DocumentList(documents=storage.list_documents())
 
 
-@router.post("/documents", response_model=Document, status_code=201, responses=STUB_RESPONSE, tags=["documents"])
+def upload_error(status: int, code: str, message: str):
+    return HTTPException(status_code=status, detail={"code": code, "message": message})
+
+
+@router.post("/documents", response_model=Document, status_code=201, tags=["documents"])
 def upload_document(
     file: Annotated[UploadFile, File(description="Text-based PDF or UTF-8 TXT, at most 10 MiB")],
-    title: Annotated[str, Form(min_length=1, max_length=200)],
-    report_date: Annotated[date, Form(description="Report publication date, YYYY-MM-DD")],
+    title: Annotated[str, Form(min_length=1, max_length=200, pattern=r"\S")],
+    report_date: Annotated[ReportDate, Form(description="Report publication date, YYYY-MM-DD")],
+    storage: Annotated[Storage, Depends(get_storage)],
+    ingest: Annotated[Ingestor, Depends(get_ingestor)],
     source_url: Annotated[HttpUrl | None, Form()] = None,
 ):
-    not_implemented()
+    original = None
+    saved = False
+    try:
+        filename = (file.filename or "").replace("\\", "/").rsplit("/", 1)[-1]
+        suffix = Path(filename).suffix.lower()
+        media_type = {".pdf": "application/pdf", ".txt": "text/plain"}.get(suffix)
+        if media_type is None or file.content_type != media_type:
+            raise upload_error(415, "unsupported_file_type", "Upload a PDF or UTF-8 TXT file with its matching media type.")
+        limit = min(10 * 1024 * 1024, max(1, int(os.getenv("FOLIO_MAX_UPLOAD_BYTES", "10485760"))))
+        doc_id = f"doc_{uuid4().hex}"
+        original = storage.upload_dir / f"{doc_id}{suffix}"
+        size = 0
+        prefix = b""
+        with original.open("xb") as destination:
+            while chunk := file.file.read(64 * 1024):
+                size += len(chunk)
+                if size > limit:
+                    raise upload_error(413, "upload_too_large", "File exceeds the upload size limit.")
+                if not prefix:
+                    prefix = chunk[:8]
+                destination.write(chunk)
+        if not size:
+            raise InvalidDocument()
+        if (media_type == "application/pdf" and not prefix.startswith(b"%PDF-")) or (
+            media_type == "text/plain" and prefix.startswith((b"%PDF-", b"PK\x03\x04", b"\x89PNG", b"\xff\xd8\xff"))
+        ):
+            raise upload_error(415, "unsupported_file_type", "File content does not match its declared type.")
+        passages = ingest(doc_id=doc_id, path=original, title=title.strip(),
+                          report_date=report_date, source_url=source_url, media_type=media_type)
+        if not passages or any(
+            p.doc_id != doc_id or p.title != title.strip() or p.report_date != report_date
+            or p.source_url != source_url or not p.text.strip()
+            or (media_type == "text/plain" and p.page is not None)
+            or (media_type == "application/pdf" and p.page is None)
+            for p in passages
+        ) or len({p.passage_id for p in passages}) != len(passages):
+            raise InvalidDocument()
+        document = Document(
+            doc_id=doc_id, title=title.strip(), filename=filename, media_type=media_type,
+            report_date=report_date, source_url=source_url,
+            uploaded_at=datetime.now(timezone.utc), passage_count=len(passages),
+        )
+        storage.save(document, passages, original)
+        saved = True
+        return document
+    except InvalidDocument:
+        raise upload_error(422, "invalid_document", "Document must contain readable text and must not be encrypted.") from None
+    finally:
+        file.file.close()
+        if original is not None and not saved:
+            original.unlink(missing_ok=True)
 
 
 @router.post("/ask", response_model=AskResponse, responses=STUB_RESPONSE, tags=["answers"])
@@ -51,6 +122,9 @@ def compare(request: CompareRequest):
     not_implemented()
 
 
-@router.get("/passages/{id}", response_model=Passage, responses=STUB_RESPONSE, tags=["evidence"])
-def get_passage(id: str):
-    not_implemented()
+@router.get("/passages/{id}", response_model=Passage, tags=["evidence"])
+def get_passage(id: str, storage: Annotated[Storage, Depends(get_storage)]):
+    passage = storage.get_passage(id)
+    if passage is None:
+        raise upload_error(404, "passage_not_found", "The requested passage was not found.")
+    return passage

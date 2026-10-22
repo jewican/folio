@@ -3,10 +3,12 @@
 A four-person hackathon project for catching up on a developing story using dated
 reports, cited answers, and evidence from both versions of a report comparison.
 
-**Foundation only:** Next.js App Router lives in `web/`, FastAPI in `backend/`.
-Health works; feature endpoints are typed 501 stubs. There is no upload storage,
-text extraction, BM25 index, or feature UI yet. A backend-only Gemini client and
-live smoke command are available; feature routes still return 501.
+Next.js App Router lives in `web/`, FastAPI in `backend/`. Health, document upload,
+document listing, and passage lookup work with local SQLite and original files.
+Basic TXT/PDF extraction is available behind a replaceable ingestion callable.
+BM25, the feature UI, and answer/comparison route implementations remain pending;
+`/ask` and `/compare` return typed 501 stubs. A backend-only Gemini client and
+live smoke command are available.
 
 Read [the sprint plan](docs/sprint-plan.md) and [API contract v1](docs/api-contract.md)
 before starting. The sprint plan was promoted from `.local/` and updated to Next.js.
@@ -33,9 +35,9 @@ Backend secrets belong only in `backend/.env`. The Gemini client reads
 `GEMINI_API_KEY` (or `GOOGLE_API_KEY` as a fallback) from the backend environment.
 Shell variables override `backend/.env`. Never copy keys to `web/` or use a
 `NEXT_PUBLIC_` prefix for them. Setup and health checks need no key.
-Storage variables are reserved for the implementation and use paths relative to
+Storage variables use paths relative to
 `backend/`. Keep SQLite, uploaded files, and the BM25 index under `backend/data/`.
-No runtime files are created by this scaffold.
+SQLite tables and the upload directory are created on the first storage request.
 
 Start two terminals:
 
@@ -129,6 +131,35 @@ coordinate before changing another lane or the shared contract. Frontend depende
 changes require W1 coordination for the root lockfile.
 
 ## API v1
+
+Upload a public report using the backend's synchronous endpoint:
+
+```sh
+curl -X POST http://localhost:8000/documents \
+  -F 'file=@report.txt;type=text/plain' \
+  -F 'title=Example report' \
+  -F 'report_date=2026-10-20' \
+  -F 'source_url=https://example.org/report'
+curl http://localhost:8000/documents
+```
+
+Omit `source_url` when unknown. Uploads accept UTF-8 TXT or text-based PDF with
+matching extension/MIME, up to 10 MiB. `FOLIO_MAX_UPLOAD_BYTES` can lower that cap.
+Empty, invalid UTF-8, encrypted, and textless documents are rejected. Files use
+generated local names; document metadata retains only the display basename.
+Document/passages are saved in one SQLite transaction after extraction succeeds;
+failed uploads remove their original file and do not appear in the document list.
+Passage IDs and exact text survive restarts and repeat uploads.
+
+W2 handoff: `app.storage.ingestion.Ingestor` receives keyword arguments `doc_id`,
+`path` (local `Path`), `title`, `report_date` (`date`), `source_url` (`HttpUrl | None`),
+and `media_type`; it returns `list[app.contracts.Passage]`. Preserve the assigned
+metadata and give every passage a unique immutable ID, readable text, and a
+physical PDF page (TXT uses null). Raise `InvalidDocument` for unusable input.
+W1 owns file persistence and the SQLite transaction. Replace the callable returned
+by `get_ingestor`, or override that FastAPI dependency, to connect W2 without
+editing routes. The fallback chunks text at 2,000 characters within each page;
+indexing/retrieval integration is pending W2's implementation.
 
 | Operation | Purpose |
 | --- | --- |
