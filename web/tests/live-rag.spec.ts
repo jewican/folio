@@ -2,7 +2,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import type { AskResponse, FolioDocument, Passage } from "../lib/types";
+import type { AskResponse, CompareResponse, FolioDocument, Passage } from "../lib/types";
 
 const root = resolve(__dirname, "../..");
 const manifest = JSON.parse(readFileSync(resolve(root, "corpus/manifest.json"), "utf8")) as {
@@ -121,4 +121,51 @@ test("backend upload validation and connection errors stay visible", async ({ pa
   await page.getByRole("button", { name: "Ask question", exact: true }).click();
   await expect(page.locator(".folio-answer").getByRole("alert")).toContainText("Can't reach the Folio backend");
   await expect(page.locator('[data-slot="web-search-citation"]')).toHaveCount(0);
+});
+
+test("held-out upload produces a real comparison with inspectable evidence on both sides", async ({ page }, testInfo) => {
+  await page.goto("/");
+  await expect(page.getByText("Connected to backend", { exact: true })).toBeVisible();
+  const initial = await page.request.get("http://127.0.0.1:8000/documents");
+  expect((await initial.json()).documents.every((d: FolioDocument) => d.report_date !== "2026-10-13")).toBe(true);
+  const olderSource = manifest.documents.find((d) => d.doc_id === "articles-2026")!;
+  const newerSource = manifest.documents.find((d) => d.doc_id === "house-press-10322-2026-10-13")!;
+  const older = await upload(page, olderSource);
+  const newer = await upload(page, newerSource);
+  await page.getByRole("button", { name: "Compare versions", exact: true }).click();
+  await page.getByLabel("Older report").selectOption(older.doc_id);
+  await page.getByLabel("Newer report").selectOption(newer.doc_id);
+  await page.getByRole("textbox", { name: "Question (optional)" }).fill(
+    "Compare the original Articles with the October 13 update: which articles would the prosecution continue pursuing, and which would it cease pursuing?");
+  const pending = page.waitForResponse((r) => r.url().endsWith("/compare") && r.request().method() === "POST");
+  await page.getByRole("button", { name: "Compare reports", exact: true }).click();
+  const response = await pending;
+  const result = await response.json() as CompareResponse;
+  await testInfo.attach("real-comparison-response", { body: JSON.stringify(result, null, 2), contentType: "application/json" });
+  expect(response.status()).toBe(200);
+  expect(result.status).toBe("compared");
+  expect(result.meta.cached).toBe(false);
+  const change = result.changes.find((c) => c.kind === "updated")!;
+  expect(change).toBeTruthy();
+  expect(change.older_citations.length).toBeGreaterThan(0);
+  expect(change.newer_citations.length).toBeGreaterThan(0);
+  await expect(page.getByText(result.summary, { exact: true }).first()).toBeVisible();
+  for (const [citation, date, docId] of [
+    [change.older_citations[0], "May 11", older.doc_id],
+    [change.newer_citations[0], "Oct 13", newer.doc_id],
+  ] as const) {
+    expect(citation.doc_id).toBe(docId);
+    const evidenceResponse = page.waitForResponse((r) => r.url().endsWith(`/passages/${citation.passage_id}`));
+    await page.getByRole("button", { name: `${citation.title}, ${date}`, exact: true }).first().click();
+    const passage = await (await evidenceResponse).json() as Passage;
+    expect(passage.doc_id).toBe(docId);
+    expect(passage.text).toContain(citation.quote);
+    const panel = page.getByRole("complementary", { name: "Evidence", exact: true });
+    await expect(panel.locator("mark")).toHaveText(citation.quote);
+    await expect(panel.getByRole("link")).toHaveAttribute("href", citation.source_url!);
+  }
+  await page.screenshot({ path: testInfo.outputPath("comparison-desktop.png"), fullPage: true });
+  await page.setViewportSize({ width: 700, height: 900 });
+  await expect(page.getByRole("complementary", { name: "Evidence", exact: true })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("comparison-mobile.png"), fullPage: true });
 });

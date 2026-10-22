@@ -74,7 +74,8 @@ npm run test:live --workspace @folio/web
 
 The browser checks start the production Next.js server on port 3000 and the real
 FastAPI app on port 8000 with temporary SQLite/files. Stop existing servers on
-those ports before running. They use the root `.venv` backend environment and
+those ports before running. They use the root `.venv` backend environment on Unix,
+`eval/.venv` on Windows, or the executable set in `FOLIO_TEST_PYTHON`, and
 `backend/.env` provider configuration; the frontend build must target
 `http://localhost:8000` (the default API URL). Public API URL settings are bundled
 at build time, so rebuild after changing them. To use an installed Chrome instead
@@ -130,8 +131,13 @@ The command prints and records the UTC test time, configured model ID, returned
 failure. The default `gemini-3.8-flash` is now confirmed by the successful
 uncached full API and browser checks below. Rerun verification when changing
 keys or model configuration.
-`GEMINI_TIMEOUT_SECONDS` defaults to 30 (maximum 120); `GEMINI_MAX_OUTPUT_TOKENS`
-defaults to 4096 (maximum 8192). Calls have network timeouts and no automatic retries.
+`GEMINI_TIMEOUT_SECONDS` defaults to 60 (maximum 120); `GEMINI_MAX_OUTPUT_TOKENS`
+defaults to 8192 (maximum 8192). Calls have network timeouts. Provider failures are
+not retried; invalid structured output or evidence gets at most one repair call
+using the same context and remaining timeout budget. Explicit lower output limits still take precedence.
+Gemini 3 models use the supported `low` thinking level for bounded evidence
+extraction and comparison, reducing time spent before the structured answer.
+See Google's [thinking configuration](https://ai.google.dev/gemini-api/docs/generate-content/thinking).
 
 Failed smoke records include a backend-only `error.reason` and, when Google
 returns an HTTP error, `error.provider_http_status`. `network_error` means no

@@ -1,0 +1,63 @@
+# Folio live BM25 evaluation
+
+Run: 2026-10-22T06:21:35.739175+00:00 (UTC). Commit: `a91bd1b10ecb52570a08f7fe53e8c0ea650c989f`.
+
+Primary cases: **4/10 PASS**. Requests include two additional initial controls.
+
+Production FastAPI TestClient → real uploads/SQLite → BM25 → configured Gemini. No Jev, mocks, dependency overrides, saved answers, or RAG changes. API latency excludes retrieval replay and grading.
+
+Every run uses a new temporary dataset, rebuilds the index from that dataset at each phase, and removes its uploads/database afterward. The normal application dataset is never reset or used.
+
+Fresh empty dataset: True. Temporary dataset removed: True.
+
+Semantic correctness and claim support are model-graded (same approved model in a separate call), not human-certified. Code separately checks schemas, status, uncached BM25, selected IDs, actual retrieved context, exact quotes and canonical stored metadata. Failed/unavailable grading cannot pass. All case criteria are mandatory. Gold quote retrieval coverage is diagnostic; other supporting passages may be valid.
+
+Configuration: `{"id": "gemini-3.8-flash", "max_output_tokens": 4096, "timeout_seconds": 30.0}`.
+Separate judge configuration: `{"id": "gemini-3.8-flash", "max_output_tokens": 8192, "timeout_seconds": 120}`.
+
+| Case | Role | Phase | Result | HTTP | API ms | Server ms |
+| --- | --- | --- | --- | ---: | ---: | ---: |
+| FOLIO-01 | primary | before_upload | PASS | 200 | 8180 | 8173 |
+| FOLIO-02 | primary | before_upload | FAIL | 502 | 6247 | — |
+| FOLIO-03 | primary | before_upload | PASS | 200 | 6227 | 6224 |
+| FOLIO-04 | primary | before_upload | FAIL | 502 | 7680 | — |
+| FOLIO-05 | primary | before_upload | FAIL | 502 | 14708 | — |
+| FOLIO-06 | primary | before_upload | PASS | 200 | 16980 | 16977 |
+| FOLIO-07 | primary | before_upload | PASS | 200 | 8381 | 8378 |
+| FOLIO-09 | control | before_upload | FAIL | 200 | 7704 | 7701 |
+| FOLIO-10 | control | before_upload | FAIL | 200 | 7444 | 7441 |
+| FOLIO-08 | primary | after_upload | FAIL | 200 | 6318 | 6315 |
+| FOLIO-09 | primary | after_upload | FAIL | 501 | 12 | — |
+| FOLIO-10 | primary | after_upload | FAIL | 501 | 3 | — |
+
+## Phase isolation
+
+- {"stage": "before_upload", "manifest_ids": ["articles-2026", "committee-report-261", "sara-duterte-answer-2026", "sc-press-briefer-2026-08-05"], "passage_count": 193, "isolation": "PASS"}
+- {"stage": "after_upload", "manifest_ids": ["articles-2026", "committee-report-261", "sara-duterte-answer-2026", "sc-press-briefer-2026-08-05", "house-press-10322-2026-10-13"], "passage_count": 194, "isolation": "PASS"}
+
+## Failures and blockers
+
+- FOLIO-09: production /compare is not implemented (501).
+- FOLIO-10: production /compare is not implemented (501).
+- FOLIO-02 (primary): HTTP 502: {'code': 'generation_failed', 'message': 'The model answer could not be validated against the selected evidence.'}
+- FOLIO-04 (primary): HTTP 502: {'code': 'generation_failed', 'message': 'The model answer could not be validated against the selected evidence.'}
+- FOLIO-05 (primary): HTTP 502: {'code': 'generation_failed', 'message': 'The model answer could not be validated against the selected evidence.'}
+- FOLIO-09 (control): Unexpected answer status.
+- FOLIO-10 (control): Unexpected answer status.
+- FOLIO-08 (primary): criteria[0]: The response is a generic abstention that omits the specific lack of a Senate verdict, vote counts, and prosecution context present in the expected answer.
+- FOLIO-08 (primary): criteria[2]: The answer fails to explicitly mention that the verdict and vote totals cannot be determined, providing only a generic abstention.
+- FOLIO-09 (primary): HTTP 501: {'code': 'not_implemented', 'message': 'Contract defined; feature not implemented.'}
+- FOLIO-10 (primary): HTTP 501: {'code': 'not_implemented', 'message': 'Contract defined; feature not implemented.'}
+
+## Evidence and reproducibility
+
+Full requests, responses, retrieved passages, gold coverage and per-criterion/support reasons: [results.json](results.json).
+Input SHA-256: `917152e14aa58d949095ae5d4bc7863776c266f96d9752030c36ea1e6992bb4b`. Runtime: `3.13.9`.
+
+Run from repository root: `python eval/run_eval.py` (install `backend/requirements-dev.txt`; backend/.env supplies the approved model). Exit 0 requires every primary and control to pass; otherwise exit 1. A rerun replaces this report and its receipt.
+
+Scope: local supplied TXT only. Publisher originals, OCR/transcription fidelity and real-world allegations remain unverified. October text is a demo-authored paraphrase. No source websites are fetched.
+
+Windows Git CRLF checkouts are uploaded as LF only when that conversion exactly matches the manifest SHA-256. The receipt records checkout and upload hashes. Corpus files are unchanged.
+
+The first full baseline is preserved in [baseline-first-run.md](baseline-first-run.md) and [baseline-first-run.json](baseline-first-run.json), including its grading failures. This fresh run uses explicit judge indexes and a larger grading-only timeout/output budget.
