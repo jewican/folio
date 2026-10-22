@@ -19,6 +19,8 @@ def client(tmp_path, monkeypatch):
     from app.main import app
     monkeypatch.setenv('FOLIO_DATA_DIR', str(tmp_path))
     monkeypatch.setenv('FOLIO_DATABASE_PATH', str(tmp_path / 'folio.sqlite3'))
+    # Baseline checks stay offline; hybrid cases explicitly enable the provider mock.
+    monkeypatch.setenv('FOLIO_RETRIEVAL_MODE', 'bm25')
     monkeypatch.delenv('FOLIO_MAX_UPLOAD_BYTES', raising=False)
     return TestClient(app)
 
@@ -703,3 +705,47 @@ def test_retrieval_boundary_rejects_noncanonical_evidence(client, monkeypatch, t
     response = client.post('/ask', json={'question': 'shelters', 'doc_ids': [selected]})
     assert response.status_code == 502
     assert response.json()['detail']['code'] == 'generation_failed'
+
+
+@pytest.mark.parametrize('embedding_fails', [False, True])
+def test_hybrid_ask_preserves_wire_contract_citations_and_comparison(
+        client, model_env, monkeypatch, embedding_fails):
+    from app.retrieval import hybrid
+    monkeypatch.setattr(hybrid, 'load_dotenv', lambda *args, **kwargs: None)
+    monkeypatch.setenv('FOLIO_RETRIEVAL_MODE', 'hybrid')
+    calls = []
+
+    def respond(request):
+        calls.append(request.url.path)
+        data = json.loads(request.content)
+        if request.url.path.endswith(':batchEmbedContents'):
+            if embedding_fails:
+                return httpx.Response(429, text='private quota details')
+            return httpx.Response(200, json={'embeddings': [
+                {'values': [1.0] + [0.0] * 767} for _ in data['requests']]})
+        context = json.loads(data['contents'][0]['parts'][0]['text'].split('INPUT_JSON:\n', 1)[1])
+        assert {p['doc_id'] for p in context['passages']} == {older['doc_id']}
+        evidence = context['passages'][0]
+        result = {'status': 'answered', 'claims': [{
+            'text': 'Three people killed.', 'citations': [{
+                'passage_id': evidence['passage_id'], 'quote': 'Three people killed.'}]}]}
+        return httpx.Response(200, json={'modelVersion': 'test', 'candidates': [{
+            'finishReason': 'STOP', 'content': {'parts': [{'text': json.dumps(result)}]}}]})
+
+    mock_model_transport(model_env, monkeypatch, respond)
+    older = upload(client, b'Three people killed.').json()
+    newer = upload(client, b'Six people killed.', report_date='2026-10-21').json()
+    question = 'people killed' if embedding_fails else 'fatalities'
+    response = client.post('/ask', json={'question': question, 'doc_ids': [older['doc_id']]})
+    assert response.status_code == 200, response.text
+    answer = AskResponse.model_validate(response.json())
+    assert answer.status == 'answered'
+    assert answer.meta.retrieval_mode == 'bm25'  # Existing v1 compatibility field.
+    assert set(response.json()) == {'question', 'doc_ids', 'status', 'answer', 'claims', 'meta'}
+    citation = answer.claims[0].citations[0]
+    evidence = client.get('/passages/' + citation.passage_id).json()
+    assert citation.quote in evidence['text']
+    assert citation.doc_id == older['doc_id']
+    assert sum(path.endswith(':generateContent') for path in calls) == 1
+    assert client.post('/compare', json={
+        'older_doc_id': older['doc_id'], 'newer_doc_id': newer['doc_id']}).status_code == 501

@@ -234,6 +234,46 @@ so indexing failures also roll back the upload. The in-memory index rebuilds fro
 stored passages on the first retrieval after restart and detects new uploads from
 other workers. IDs and text remain unchanged.
 
+Retrieval defaults to hybrid BM25 + Gemini Embedding 2. Set the backend environment
+variable `FOLIO_RETRIEVAL_MODE=bm25` to use keyword search only, or `hybrid` to enable
+semantic search. No frontend changes or new request fields are required. The
+backend `Storage.retrieve(..., mode="bm25" | "hybrid")` also allows an explicit
+override. The existing public W2 `BM25Index` remains the keyword-only index.
+
+Hybrid retrieval embeds each existing passage independently with
+`gemini-embedding-2`, using 768 dimensions and the model's search query/document
+prefixes. Vectors are stored in the existing SQLite database's
+`passage_embeddings` table, keyed by passage ID and model/dimension/prompt version,
+with a content hash preventing reuse of stale vectors. Uploads attempt embedding
+after committing canonical files/passages. Failed embedding does not fail an
+upload; retrieval retries missing vectors for the selected reports. Restarts reuse
+saved vectors. No documents are fetched or re-chunked.
+
+Semantic cosine rankings and BM25 rankings are combined per selected report using
+reciprocal rank fusion (`1 / (60 + rank)`), taking up to 20 candidates from each
+ranking, then preserving the existing balanced six-passage answer context. Query
+embeddings use one provider call when passage vectors are already cached. Missing
+passage vectors are generated in synchronous batches of at most 32 independent
+requests, not combined into one embedding. Provider calls default to an 8-second
+timeout (`GEMINI_EMBEDDING_TIMEOUT_SECONDS`, maximum 20); no further calls are
+started after the operation's 20-second budget expires. Credentials, timeouts,
+provider errors, malformed vectors, and optional cache failures fall back to the
+original BM25 ranking. Generation and citation validation are unchanged.
+
+For v1 compatibility, response `meta.retrieval_mode` retains its existing literal
+`"bm25"`; it cannot distinguish the configured backend modes. Backend INFO logs
+report `requested`, `actual`, `fallback`, and retrieval `elapsed_ms` separately.
+`meta.elapsed_ms` continues to measure the entire answer request. `/compare`
+retains its current behavior. A full-report fallback is outside this change.
+
+Retrieval latency measured on 2026-10-22 with the live Gemini Embedding 2 API:
+six synthetic passages of approximately 400 words each, with three passages in
+the selected report. BM25 median was 0.17 ms over 30 queries; cold hybrid retrieval
+(including document embedding backfill) was 1,898 ms. With passage embeddings
+cached, three hybrid queries took 1,025 / 802 / 1,238 ms (median 1,025 ms).
+These measurements exclude answer generation and are a small-corpus check,
+not a production benchmark. API timing dominated the hybrid results.
+
 `POST /ask` accepts `{"question":"How many shelters opened?","doc_ids":["doc_ID"]}`.
 It ranks each selected document independently and interleaves up to six passages,
 sends evidence to the configured model, and builds answer prose from validated

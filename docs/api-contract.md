@@ -11,7 +11,8 @@ Unknown JSON request fields are rejected. Clients must use the shapes below.
 
 **Current implementation:** health, document upload/listing, passage lookup, and
 `/ask` work with local SQLite/files, W2 PDF/TXT extraction and selection-scoped
-BM25, and the configured Gemini Flash client. Upload builds a replacement index
+BM25 with backend-configured Gemini Embedding 2 hybrid ranking, and the configured
+Gemini Flash client. Upload builds a replacement index
 before committing; retrieval rebuilds from saved passages after restart. Answers
 validate citation IDs and exact quotes against supplied passages and use stored
 metadata. Unsupported questions return `insufficient_evidence`; invalid model
@@ -174,7 +175,9 @@ a local original-file download route is not defined in v1.
 `question` is nonblank, 1–2000 characters. `doc_ids` is required, 1–5 distinct
 existing ready IDs. There is no implicit “all documents” selection. Retrieve only
 within this selection; never leak held-out or newer evidence into earlier answers.
-BM25 is fixed in v1, with a small bounded context chosen by W1/W2 internally.
+The request has no retrieval-mode field. Backend `FOLIO_RETRIEVAL_MODE` selects
+`hybrid` (default) or `bm25`, with automatic BM25 fallback on embedding failure.
+Both use a small bounded context chosen by W1/W2 internally.
 
 200 `AskResponse` (all fields required):
 
@@ -211,7 +214,9 @@ Return `status: "insufficient_evidence"`, an explanatory `answer`, and
 `claims: []` when there is no supported answer; never invent evidence. This is a
 normal 200 result, distinct from provider failure. Unknown selected ID is 404.
 
-Shared `meta`: `retrieval_mode` is always `"bm25"`; `elapsed_ms` is a nonnegative
+Shared `meta`: `retrieval_mode` remains `"bm25"` for v1 wire compatibility, including
+when hybrid ranking is enabled; actual mode/fallback are recorded in backend logs.
+`elapsed_ms` is a nonnegative
 integer of server wall-clock time for the request; `cached` is a boolean. Initially
 it may always be false. Future cache keys include selected versions, question,
 corpus/index revision, model ID, prompt version, and retrieval mode.

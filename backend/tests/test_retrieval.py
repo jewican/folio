@@ -145,3 +145,191 @@ def test_snapshot_round_trip_preserves_citation_fields(tmp_path):
     path = tmp_path / 'index.json'
     index.save(path)
     assert BM25Index.load(path).retrieve('Exact quote', ['doc']) == [row]
+
+
+# Hybrid tests use deterministic provider vectors; no external API or keys required.
+@pytest.fixture
+def embedding_transport(monkeypatch):
+    import json
+    import httpx
+    from app.retrieval import hybrid
+
+    monkeypatch.setattr(hybrid, 'load_dotenv', lambda *args, **kwargs: None)
+    monkeypatch.setenv('GEMINI_API_KEY', 'test-embedding-key')
+    monkeypatch.setenv('FOLIO_RETRIEVAL_MODE', 'hybrid')
+    monkeypatch.setenv('GEMINI_EMBEDDING_TIMEOUT_SECONDS', '2')
+    calls = []
+    state = {'failure': None}
+    real_client = httpx.Client
+
+    def respond(request):
+        calls.append(request)
+        assert str(request.url).endswith('/gemini-embedding-2:batchEmbedContents')
+        if state['failure'] == 'timeout':
+            raise httpx.ReadTimeout('private provider details', request=request)
+        if state['failure'] == 'http':
+            return httpx.Response(429, text='private quota details')
+        inputs = json.loads(request.content)['requests']
+        embeddings = []
+        for item in inputs:
+            assert item['model'] == 'models/gemini-embedding-2'
+            assert item['outputDimensionality'] == 768
+            assert 'taskType' not in item
+            assert len(item['content']['parts']) == 1
+            text = item['content']['parts'][0]['text']
+            # Deliberately no lexical overlap: fatalities <-> people killed.
+            vector = ([1.0, 0.0] if ('killed' in text or 'fatalities' in text)
+                      else [0.0, 1.0]) + [0.0] * 766
+            if state['failure'] == 'zero':
+                vector = [0.0] * 768
+            if state['failure'] == 'dimension':
+                vector = [1.0]
+            if state['failure'] == 'nan':
+                # Return nonfinite JSON as text, since httpx rejects JSON NaN.
+                return httpx.Response(200, text='{"embeddings":[{"values":[NaN]}]}')
+            embeddings.append({'values': vector})
+        if state['failure'] == 'count':
+            embeddings = []
+        return httpx.Response(200, json={'embeddings': embeddings})
+
+    monkeypatch.setattr(hybrid.httpx, 'Client', lambda **kwargs: real_client(
+        transport=httpx.MockTransport(respond), **kwargs))
+    return calls, state
+
+
+def hybrid_storage(tmp_path, rows):
+    from datetime import datetime, timezone
+    from app.contracts import Document
+    from app.storage.database import Storage
+
+    storage = Storage(tmp_path, tmp_path / 'folio.sqlite3')
+    for doc_id in sorted({p.doc_id for p in rows}):
+        selected = [p for p in rows if p.doc_id == doc_id]
+        original = storage.upload_dir / (doc_id + '.txt')
+        original.write_text(''.join(p.text for p in selected))
+        storage.save(Document(
+            doc_id=doc_id, title=selected[0].title, filename=original.name,
+            media_type='text/plain', report_date=selected[0].report_date,
+            source_url=selected[0].source_url, uploaded_at=datetime.now(timezone.utc),
+            passage_count=len(selected), status='ready'), selected, original)
+    return storage
+
+
+def test_hybrid_paraphrase_upload_persistence_and_document_filters(tmp_path, embedding_transport):
+    import json
+    from app.storage.database import Storage
+
+    calls, _ = embedding_transport
+    rows = [passage('a', 'old', 'Three people killed in the incident.'),
+            passage('b', 'old', 'Hospitals remained open.'),
+            passage('c', 'new', 'Six people killed in the incident.')]
+    storage = hybrid_storage(tmp_path, rows)
+    assert len(calls) == 2  # Upload embeds each document's chunks separately.
+    assert storage.retrieve('fatalities', ['old'], mode='bm25') == []
+    assert len(calls) == 2  # BM25 never calls the embedding API.
+    result = storage.retrieve('fatalities', ['old'], mode='hybrid')
+    assert result[0] == rows[0]
+    assert all(p.doc_id == 'old' for p in result)
+    assert len(calls) == 3
+    assert json.loads(calls[-1].content)['requests'][0]['content']['parts'][0]['text'] == (
+        'task: search result | query: fatalities')
+    with storage.connect() as db:
+        assert db.execute('SELECT count(*) FROM passage_embeddings').fetchone()[0] == 3
+    restarted = Storage(tmp_path, tmp_path / 'folio.sqlite3')
+    assert restarted.retrieve('fatalities', ['old']) == result
+    assert len(calls) == 4  # Restart reuses persisted document vectors; only embeds query.
+    assert restarted.get_passage(result[0].passage_id) == rows[0]
+    assert restarted.retrieve('fatalities', ['missing']) == []
+    assert len(calls) == 4  # No candidates means no query-embedding call.
+    assert restarted.retrieve('fatalities', ['old', 'new']) == restarted.retrieve(
+        'fatalities', ['new', 'old'])
+
+
+def test_rrf_combines_rankings_and_deduplicates():
+    from app.retrieval.hybrid import rrf
+    a, b, c = [passage(pid, 'doc', pid) for pid in 'abc']
+    assert rrf([[a, b], [c, b]], 3) == [b, a, c]
+    assert rrf([[a, a], [b]], 3) == [a, b]
+
+
+@pytest.mark.parametrize('failure', ['http', 'timeout', 'dimension', 'zero', 'nan', 'count'])
+@pytest.mark.parametrize('phase', ['upload', 'query'])
+def test_embedding_failure_preserves_bm25_and_uploads(
+        tmp_path, embedding_transport, caplog, failure, phase):
+    import logging
+    calls, state = embedding_transport
+    if phase == 'upload':
+        state['failure'] = failure
+    rows = [passage('a', 'old', 'Ten shelters opened.')]
+    storage = hybrid_storage(tmp_path, rows)
+    assert storage.get_passage('a') == rows[0]
+    assert storage.list_documents()[0].doc_id == 'old'
+    state['failure'] = failure
+    with caplog.at_level(logging.INFO):
+        assert storage.retrieve('shelters', ['old']) == storage.retrieve(
+            'shelters', ['old'], mode='bm25')
+    assert calls
+    assert 'actual=bm25' in caplog.text
+    assert 'private' not in caplog.text
+    assert 'test-embedding-key' not in caplog.text
+
+
+def test_hybrid_backfills_existing_chunks_and_repairs_cache(tmp_path, monkeypatch, embedding_transport):
+    calls, _ = embedding_transport
+    monkeypatch.setenv('FOLIO_RETRIEVAL_MODE', 'bm25')
+    rows = [passage('a', 'old', 'Three people killed.')]
+    storage = hybrid_storage(tmp_path, rows)
+    assert calls == []
+    assert storage.retrieve('fatalities', ['old'], mode='hybrid') == rows
+    assert len(calls) == 2  # Document backfill, then query.
+    with storage.connect() as db:
+        db.execute("UPDATE passage_embeddings SET vector = '[0]'")
+        db.commit()
+    assert storage.retrieve('fatalities', ['old'], mode='hybrid') == rows
+    assert len(calls) == 4
+    with storage.connect() as db:
+        db.execute("UPDATE passage_embeddings SET content_hash = 'stale'")
+        db.commit()
+    assert storage.retrieve('fatalities', ['old'], mode='hybrid') == rows
+    assert len(calls) == 6
+
+
+def test_hybrid_keeps_six_passage_balanced_context(tmp_path, embedding_transport):
+    rows = [passage(f'{doc}-{i}', doc, 'People killed and shelters opened.')
+            for doc in ['old', 'new'] for i in range(8)]
+    storage = hybrid_storage(tmp_path, rows)
+    result = storage.retrieve('fatalities', ['old', 'new'])
+    assert len(result) == len({p.passage_id for p in result}) == 6
+    assert [p.doc_id for p in result] == ['new', 'old'] * 3
+    assert all(storage.get_passage(p.passage_id) == p for p in result)
+
+
+def test_embedding_cache_failure_falls_back(tmp_path, embedding_transport, monkeypatch):
+    import sqlite3
+    storage = hybrid_storage(tmp_path, [passage('a', 'old', 'Shelters opened.')])
+    def fail(*args):
+        raise sqlite3.OperationalError('private database path')
+    monkeypatch.setattr(storage._hybrid.store, 'load', fail)
+    assert storage.retrieve('shelters', ['old']) == storage.retrieve('shelters', ['old'], mode='bm25')
+
+
+def test_unknown_retrieval_mode_rejected(tmp_path, monkeypatch):
+    monkeypatch.setenv('FOLIO_RETRIEVAL_MODE', 'bm25')
+    storage = hybrid_storage(tmp_path, [])
+    with pytest.raises(ValueError, match='bm25 and hybrid'):
+        storage.retrieve('shelters', ['old'], mode='unknown')
+
+
+@pytest.mark.parametrize('configuration', ['missing_key', 'bad_timeout'])
+def test_embedding_configuration_failure_is_offline_bm25(
+        tmp_path, monkeypatch, embedding_transport, configuration):
+    calls, _ = embedding_transport
+    if configuration == 'missing_key':
+        monkeypatch.setenv('GEMINI_API_KEY', '')
+        monkeypatch.setenv('GOOGLE_API_KEY', '')
+    else:
+        monkeypatch.setenv('GEMINI_EMBEDDING_TIMEOUT_SECONDS', 'nan')
+    rows = [passage('a', 'old', 'Ten shelters opened.')]
+    storage = hybrid_storage(tmp_path, rows)
+    assert storage.retrieve('shelters', ['old']) == rows
+    assert calls == []
