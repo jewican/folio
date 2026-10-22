@@ -30,6 +30,9 @@ type DocumentSidebarProps = {
   /** Drawer state below the md breakpoint; the sidebar is always shown above it. */
   open: boolean;
   onClose: () => void;
+  onUploadClick: () => void;
+  /** Reports uploaded during this visit, marked so the newest evidence stands out. */
+  newIds: string[];
 };
 
 export function DocumentSidebar({
@@ -42,6 +45,8 @@ export function DocumentSidebar({
   onViewChange,
   open,
   onClose,
+  onUploadClick,
+  newIds,
 }: DocumentSidebarProps) {
   const atLimit = selectedIds.length >= MAX_ASK_DOCUMENTS;
 
@@ -135,6 +140,7 @@ export function DocumentSidebar({
                   doc={doc}
                   tone={reportTone(doc.doc_id, documents)}
                   checked={checked}
+                  isNew={newIds.includes(doc.doc_id)}
                   disabled={!checked && atLimit}
                   onToggle={() => onToggleDocument(doc.doc_id)}
                 />
@@ -147,9 +153,9 @@ export function DocumentSidebar({
       <div className="px-3 pt-3">
         <button
           type="button"
-          disabled
-          title="Uploading isn't connected yet"
-          className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-[#3d434b] px-3 py-2.5 text-[12px] font-medium text-[#a9b1bc] disabled:opacity-60"
+          onClick={onUploadClick}
+          disabled={documents === null}
+          className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-[#3d434b] px-3 py-2.5 text-[12px] font-medium text-[#a9b1bc] transition-colors hover:enabled:border-[#5b6573] hover:enabled:bg-white/[0.04] hover:enabled:text-[#e8ecf1] disabled:opacity-60"
         >
           <Upload size={14} /> Upload report
         </button>
@@ -184,12 +190,14 @@ function ReportItem({
   doc,
   tone,
   checked,
+  isNew,
   disabled,
   onToggle,
 }: {
   doc: FolioDocument;
   tone: string;
   checked: boolean;
+  isNew: boolean;
   disabled: boolean;
   onToggle: () => void;
 }) {
@@ -235,6 +243,11 @@ function ReportItem({
             <span className="truncate text-[12.5px] font-medium text-[#e8ecf1]">
               {doc.title}
             </span>
+            {isNew && (
+              <span className="shrink-0 rounded-full bg-[#98bfff]/15 px-1.5 py-px text-[9.5px] font-semibold uppercase tracking-[0.08em] text-[#a9c9ff]">
+                New
+              </span>
+            )}
           </span>
           <span className="mt-1 block text-[11px] text-[#8c949f]">
             <time dateTime={doc.report_date}>

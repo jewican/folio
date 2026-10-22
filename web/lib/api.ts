@@ -16,6 +16,7 @@ import type {
   Passage,
   ValidationIssue,
 } from "@/lib/types";
+import { MAX_UPLOAD_BYTES, uploadKind } from "@/lib/upload";
 
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
@@ -86,6 +87,73 @@ export async function ask(body: AskRequest): Promise<AskResponse> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
+}
+
+export type UploadRequest = {
+  file: File;
+  title: string;
+  report_date: string;
+  source_url: string | null;
+};
+
+export async function uploadDocument(input: UploadRequest): Promise<FolioDocument> {
+  if (USING_SAMPLE_DATA) return sampleUpload(input);
+
+  const form = new FormData();
+  form.append("file", input.file);
+  form.append("title", input.title);
+  form.append("report_date", input.report_date);
+  // The contract asks clients to omit source_url when it is unknown.
+  if (input.source_url) form.append("source_url", input.source_url);
+  return request<FolioDocument>("/documents", { method: "POST", body: form });
+}
+
+// Mirrors the backend's upload checks so the form's error states can be exercised.
+// Sample uploads have no extracted passages, so questions about them come back
+// as insufficient evidence.
+async function sampleUpload(input: UploadRequest): Promise<FolioDocument> {
+  await wait(900);
+  const { file } = input;
+  const kind = uploadKind(file);
+  if (!kind) {
+    throw new ApiError("Only PDF and TXT files are supported.", "unsupported_file_type", 415);
+  }
+  if (file.size > MAX_UPLOAD_BYTES) {
+    throw new ApiError("The file is larger than 10 MB.", "upload_too_large", 413);
+  }
+
+  let passageCount: number;
+  if (kind === "pdf") {
+    const header = new TextDecoder().decode(await file.slice(0, 5).arrayBuffer());
+    if (header !== "%PDF-") {
+      throw new ApiError("This file isn't a valid PDF.", "unsupported_file_type", 415);
+    }
+    passageCount = Math.max(1, Math.round(file.size / 4000));
+  } else {
+    let text: string;
+    try {
+      text = new TextDecoder("utf-8", { fatal: true }).decode(await file.arrayBuffer());
+    } catch {
+      throw new ApiError("This text file isn't valid UTF-8.", "invalid_document", 422);
+    }
+    const paragraphs = text.split(/\n\s*\n/).filter((p) => p.trim());
+    if (paragraphs.length === 0) {
+      throw new ApiError("This file has no readable text.", "invalid_document", 422);
+    }
+    passageCount = paragraphs.length;
+  }
+
+  return {
+    doc_id: `doc_upload_${Date.now().toString(36)}`,
+    title: input.title,
+    filename: file.name,
+    media_type: kind === "pdf" ? "application/pdf" : "text/plain",
+    report_date: input.report_date,
+    source_url: input.source_url,
+    uploaded_at: new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
+    passage_count: passageCount,
+    status: "ready",
+  };
 }
 
 export async function getPassage(passageId: string): Promise<Passage> {
