@@ -311,7 +311,7 @@ def test_model_request_and_result(model_env, monkeypatch):
         assert 'test-secret-fallback' not in str(request.url)
         body = json.loads(request.content)
         assert body['contents'][0]['parts'] == [{'text': 'Hello'}]
-        assert body['generationConfig']['maxOutputTokens'] == 1024
+        assert body['generationConfig']['maxOutputTokens'] == 4096
         return httpx.Response(200, json={
             'modelVersion': 'gemini-3.8-flash',
             'candidates': [{'finishReason': 'STOP', 'content': {'parts': [

@@ -13,7 +13,6 @@ import {
 import { toSource } from "@/components/folio/ask-view";
 import { AiStatus } from "@/components/ui/ai-status";
 import { WebSearchCitation } from "@/components/ui/web-search";
-import { USING_SAMPLE_DATA } from "@/lib/api";
 import { formatShortDate, reportTone } from "@/lib/reports";
 import type {
   Change,
@@ -394,9 +393,6 @@ function CompareResult({
           <span>BM25 retrieval</span>
           <span>{response.meta.elapsed_ms.toLocaleString("en-US")} ms</span>
           <span>{response.meta.cached ? "Cached result" : "Not cached"}</span>
-          {USING_SAMPLE_DATA && (
-            <span className="font-medium text-[#b08a46]">Sample response</span>
-          )}
         </p>
       )}
     </article>

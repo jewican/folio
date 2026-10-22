@@ -121,7 +121,9 @@ def run() -> int:
     previous = {name: os.environ.get(name) for name in names}
     try:
         require(not app.dependency_overrides, 'Live check refuses dependency overrides.')
-        report['model_id'] = get_model_client().model_id
+        model = get_model_client()
+        report['model_id'] = model.model_id
+        report['max_output_tokens'] = model.max_output_tokens
         with TemporaryDirectory(prefix='folio-live-api-') as directory:
             os.environ['FOLIO_DATA_DIR'] = directory
             os.environ['FOLIO_DATABASE_PATH'] = str(Path(directory) / 'folio.sqlite3')

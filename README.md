@@ -8,7 +8,10 @@ document listing, and passage lookup work with local SQLite and original files.
 W2's TXT/PDF extraction and selection-scoped BM25 power `/ask`, which uses the
 configured Gemini Flash model and validates passage IDs and exact citation quotes.
 Unsupported questions return an explicit insufficient-evidence response.
-`/compare` remains a typed 501 stub. A backend-only live model smoke command is available.
+`/compare` remains a typed 501 stub. The frontend always uses FastAPI for document
+listing/upload, questions, and passage lookup. Citation chips open stored evidence
+with the source file, date, page, exact highlighted quote, and publisher link.
+Sample mode and fictional response data have been removed.
 
 Read [the sprint plan](docs/sprint-plan.md) and [API contract v1](docs/api-contract.md)
 before starting. The sprint plan was promoted from `.local/` and updated to Next.js.
@@ -59,6 +62,42 @@ set `FOLIO_CORS_ORIGINS` to comma-separated origins if using other local ports.
 
 ## Verify
 
+To check the production frontend in a real Chromium browser:
+
+```sh
+npm run lint
+npm run typecheck
+npm run build
+npx playwright install chromium
+npm run test:live --workspace @folio/web
+```
+
+The browser checks start the production Next.js server on port 3000 and the real
+FastAPI app on port 8000 with temporary SQLite/files. Stop existing servers on
+those ports before running. They use the root `.venv` backend environment and
+`backend/.env` provider configuration; the frontend build must target
+`http://localhost:8000` (the default API URL). Public API URL settings are bundled
+at build time, so rebuild after changing them. To use an installed Chrome instead
+of downloading Chromium, set `PLAYWRIGHT_CHROMIUM_EXECUTABLE` to its executable.
+
+Browser checks upload W4's actual SC transcript, confirm persistence and explicit
+insufficient evidence, exercise real upload validation and browser connectivity
+errors, and call the configured model through `/ask`. A successful generated
+answer must open a citation's stored passage on desktop and mobile with matching
+metadata, an exact highlighted quote and a publisher link. No requests are
+intercepted or fulfilled with fixtures. If generation fails, the test verifies
+the actual UI error and then fails the full-flow gate. Traces and API response
+attachments are saved under the ignored `web/test-results/` directory.
+
+Current browser result: all three real browser checks pass, including a real
+Gemini answer and matching citation/quote/source metadata on desktop and mobile.
+Uploads persist, insufficient evidence is explicit, and upload/connection errors
+remain visible. The JSON report is saved at `web/test-results/live-report.json`.
+Earlier HTTP 402 failures are historical; the latest real generation succeeds.
+The output default was raised to 4096 after a broader financial question hit the
+old 1024-token cap. Provider failures and truncation still return explicit errors;
+no replacement answer is shown.
+
 To make one genuine, uncached Gemini request, activate the virtual environment,
 set a backend key and `GEMINI_MODEL`, then run:
 
@@ -88,10 +127,11 @@ simulate provider failures separately for deterministic error coverage.
 The command prints and records the UTC test time, configured model ID, returned
 `modelVersion`, response text and elapsed milliseconds in the ignored local file
 `backend/data/model-smoke.json`. It exits nonzero and records a safe error on
-failure. Only a successful record confirms a working model ID. The default
-`gemini-3.8-flash` is an unconfirmed candidate, not a claim of availability.
+failure. The default `gemini-3.8-flash` is now confirmed by the successful
+uncached full API and browser checks below. Rerun verification when changing
+keys or model configuration.
 `GEMINI_TIMEOUT_SECONDS` defaults to 30 (maximum 120); `GEMINI_MAX_OUTPUT_TOKENS`
-defaults to 1024 (maximum 8192). Calls have network timeouts and no automatic retries.
+defaults to 4096 (maximum 8192). Calls have network timeouts and no automatic retries.
 
 Failed smoke records include a backend-only `error.reason` and, when Google
 returns an HTTP error, `error.provider_http_status`. `network_error` means no
@@ -130,8 +170,16 @@ indexed (194 passages), invalid-document/selection requests returned the expecte
 404/422/415 errors, and empty retrieval returned insufficient evidence. A real
 `/ask` request for W4's Supreme Court question reached the provider, which again
 returned HTTP 402. The API returned a safe 502 billing/quota message. No live
-answer or citation success is claimed; restore provider access and rerun the
-full API check. There is no mock or saved-answer fallback in backend routes.
+answer or citation success was obtained in that attempt. There is no mock or
+saved-answer fallback in backend routes.
+
+Latest check on 2026-10-22 at 05:54 UTC: provider access works. The full API check
+succeeded with all five W4 uploads, two real cited answers, and one model-reported
+insufficient-evidence response. Every citation resolved to selected stored text
+with matching metadata and exact quotes. The local receipt has `success: true`
+and `mocked: false`. All three real Chromium tests also passed, including citation
+inspection on desktop and mobile. The model output cap is now 4096 by default; an
+explicit lower `GEMINI_MAX_OUTPUT_TOKENS` setting still takes precedence.
 
 ```sh
 npm run lint

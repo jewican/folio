@@ -36,6 +36,8 @@ class GenerationError(Exception):
             message = "The model provider rejected backend credentials or access."
         elif provider_http_status == 429:
             message = "The model provider is rate limited or out of quota. Try again later."
+        elif reason == "output_token_limit":
+            message = "The model response was too long to complete. Try a narrower question."
         elif reason == "invalid_evidence":
             message = "The model answer could not be validated against the selected evidence."
         super().__init__(message)
@@ -63,7 +65,7 @@ class GeminiClient:
     api_key: SecretStr
     model_id: str
     timeout_seconds: float = 30
-    max_output_tokens: int = 1024
+    max_output_tokens: int = 4096
 
     @classmethod
     def from_env(cls) -> "GeminiClient":
@@ -73,7 +75,7 @@ class GeminiClient:
         model = (os.getenv("GEMINI_MODEL") or "gemini-3.8-flash").strip()
         try:
             timeout = float(os.getenv("GEMINI_TIMEOUT_SECONDS") or "30")
-            tokens = int(os.getenv("GEMINI_MAX_OUTPUT_TOKENS") or "1024")
+            tokens = int(os.getenv("GEMINI_MAX_OUTPUT_TOKENS") or "4096")
         except ValueError:
             raise GenerationError(reason="configuration") from None
         if (not key or not re.fullmatch(r"gemini-[a-z0-9.-]*flash[a-z0-9.-]*", model)

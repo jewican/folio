@@ -39,3 +39,7 @@ __pycache__/
 .DS_Store
 *:Zone.Identifier
 *.log
+
+# Browser verification artifacts
+/web/test-results/
+/web/playwright-report/

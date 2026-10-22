@@ -2,7 +2,7 @@
 
 import { ArrowUpRight, Check, RotateCcw, Upload, X } from "lucide-react";
 import { HookSidebar } from "@/components/ui/hook-sidebar";
-import { API_BASE_URL, MAX_ASK_DOCUMENTS, USING_SAMPLE_DATA } from "@/lib/api";
+import { API_BASE_URL, MAX_ASK_DOCUMENTS } from "@/lib/api";
 import {
   fileKind,
   formatReportDate,
@@ -166,12 +166,12 @@ export function DocumentSidebar({
           <span
             className={cn(
               "size-1.5 shrink-0 rounded-full",
-              USING_SAMPLE_DATA ? "bg-[#d3a75c]" : "bg-[#87a68b]",
+              documentsError ? "bg-[#d3a75c]" : documents === null ? "bg-[#a9b1bc]" : "bg-[#87a68b]",
             )}
           />
-          {USING_SAMPLE_DATA
-            ? "Sample data — not the live backend"
-            : `Live backend · ${API_BASE_URL.replace(/^https?:\/\//, "")}`}
+          <span title={API_BASE_URL}>
+            {documentsError ? "Backend unavailable" : documents === null ? "Connecting to backend…" : "Connected to backend"}
+          </span>
         </p>
         <a
           href="https://rareui.com"

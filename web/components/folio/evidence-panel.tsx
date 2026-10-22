@@ -135,6 +135,15 @@ function EvidenceDetail({
   result: PassageResult | null;
   onRetry: () => void;
 }) {
+  const passage = result?.passage;
+  const matches = passage &&
+    (["passage_id", "doc_id", "title", "report_date", "source_url", "page"] as const)
+      .every((field) => passage[field] === citation[field]) &&
+    citation.quote.trim().length > 0 && passage.text.includes(citation.quote);
+  const evidenceError = result?.error ?? (passage && !matches
+    ? "The citation does not match this stored passage. Try again."
+    : null);
+
   return (
     <div className="flex flex-col gap-4">
       <section className="rounded-xl border border-[#dfe4e9] bg-white/70 p-4">
@@ -157,6 +166,12 @@ function EvidenceDetail({
           </div>
         </div>
         <dl className="mt-3.5 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1.5 text-[12px]">
+          {doc && (
+            <>
+              <dt className="text-[#9aa4b1]">File</dt>
+              <dd className="break-all text-[#4d5866]">{doc.filename}</dd>
+            </>
+          )}
           <dt className="text-[#9aa4b1]">Page</dt>
           <dd className="text-[#4d5866]">
             {citation.page ?? "None (text file)"}
@@ -193,12 +208,12 @@ function EvidenceDetail({
         </div>
         <div className="mb-5 mt-3 h-px bg-[#e7e9ec]" />
 
-        {result?.passage ? (
-          <PassageText text={result.passage.text} quote={citation.quote} />
-        ) : result?.error ? (
+        {matches ? (
+          <PassageText text={passage.text} quote={citation.quote} />
+        ) : evidenceError ? (
           <div role="alert" className="text-[13px] leading-relaxed text-[#8a4234]">
             <p className="flex items-center gap-2">
-              <TriangleAlert size={15} /> {result.error}
+              <TriangleAlert size={15} /> {evidenceError}
             </p>
             <button
               type="button"

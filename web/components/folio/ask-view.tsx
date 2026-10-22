@@ -3,7 +3,6 @@
 import { useState } from "react";
 import {
   ArrowUp,
-  ArrowUpRight,
   CircleSlash,
   RotateCcw,
   Search,
@@ -15,7 +14,6 @@ import {
   WebSearchCitation,
   type WebSource,
 } from "@/components/ui/web-search";
-import { USING_SAMPLE_DATA, suggestedQuestions } from "@/lib/api";
 import {
   citationLabel,
   formatShortDate,
@@ -124,23 +122,7 @@ export function AskIntro({
       <div className="mt-8">
         <Composer selectedCount={selectedCount} onAsk={onAsk} />
       </div>
-      {suggestedQuestions.length > 0 && (
-        <div className="mt-4 flex flex-wrap items-center gap-2">
-          <span className="mr-1 text-[11px] text-[#a2a7af]">Try asking</span>
-          {suggestedQuestions.map((question) => (
-            <button
-              key={question}
-              type="button"
-              disabled={selectedCount === 0}
-              onClick={() => onAsk(question)}
-              className="inline-flex items-center gap-1 rounded-full border border-[#dfe3e8] bg-white/60 px-3 py-1.5 text-[12px] text-[#5f6d7e] transition-colors hover:enabled:border-[#b9cbe0] hover:enabled:text-[#315f9e] disabled:opacity-50"
-            >
-              {question}
-              <ArrowUpRight size={12} className="text-[#a3afbe]" />
-            </button>
-          ))}
-        </div>
-      )}
+
     </section>
   );
 }
@@ -323,9 +305,6 @@ export function AnswerView({
           <span>BM25 retrieval</span>
           <span>{response.meta.elapsed_ms.toLocaleString("en-US")} ms</span>
           <span>{response.meta.cached ? "Cached result" : "Not cached"}</span>
-          {USING_SAMPLE_DATA && (
-            <span className="font-medium text-[#b08a46]">Sample response</span>
-          )}
         </p>
       )}
     </article>

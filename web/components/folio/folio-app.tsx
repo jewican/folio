@@ -14,7 +14,6 @@ import { EvidencePanel } from "@/components/folio/evidence-panel";
 import { UploadDialog } from "@/components/folio/upload-dialog";
 import {
   MAX_ASK_DOCUMENTS,
-  USING_SAMPLE_DATA,
   ask,
   compare,
   errorMessage,
@@ -222,15 +221,6 @@ export function FolioApp() {
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-2">
-              {USING_SAMPLE_DATA && (
-                <span
-                  title="Responses come from built-in sample data, not the backend"
-                  className="inline-flex items-center gap-1.5 rounded-full border border-[#eadfc8] bg-[#fbf7ee] px-2.5 py-1 text-[11px] font-medium text-[#8f7343]"
-                >
-                  <span className="size-1.5 rounded-full bg-[#d3a75c]" />
-                  Sample data
-                </span>
-              )}
               <button
                 type="button"
                 onClick={openEvidence}
