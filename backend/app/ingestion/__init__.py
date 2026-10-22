@@ -14,7 +14,12 @@ from pydantic import BaseModel, Field, HttpUrl
 from app.contracts import Passage
 
 MAX_FILE_BYTES = 10_485_760
-_PAGE_MARKER = re.compile(r"^-{10} SOURCE PDF PAGE ([1-9]\d*) / ([1-9]\d*) -{10}[^\S\r\n]*\r?$", re.MULTILINE)
+_PAGE_MARKER = re.compile(
+    r"^(?:-{10} SOURCE PDF PAGE ([1-9]\d*) / ([1-9]\d*) -{10}"
+    r"|={5} PDF PAGE (0*[1-9]\d*) / (0*[1-9]\d*) ={5}"
+    r"|={10} PAGE ([1-9]\d*) OF ([1-9]\d*) ={10})[^\S\r\n]*\r?$",
+    re.MULTILINE,
+)
 
 
 class ExtractionError(ValueError):
@@ -63,7 +68,8 @@ def extract_text_pages(doc_id: str, path: str | Path) -> list[ExtractedPage]:
         pages.append(ExtractedPage(doc_id, None, text[:markers[0].start()]))
     for i, marker in enumerate(markers):
         end = markers[i + 1].start() if i + 1 < len(markers) else len(text)
-        pages.append(ExtractedPage(doc_id, int(marker[1]), text[marker.start():end]))
+        source_page = int(next(value for value in marker.groups()[::2] if value))
+        pages.append(ExtractedPage(doc_id, source_page, text[marker.start():end]))
     return pages
 
 

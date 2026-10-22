@@ -73,12 +73,25 @@ class Storage:
             count = connection.execute("SELECT count(*) FROM passages").fetchone()[0]
             if self._index is None or count != self._indexed_count:
                 self._index, self._indexed_count = self._build_index(connection)
-            return self._index.retrieve(question, doc_ids, k=6)
+            # Interleave independent document rankings: a long report must not
+            # consume the entire context when several versions are selected.
+            rankings = [self._index.retrieve(question, [doc_id], k=6)
+                        for doc_id in sorted(doc_ids)]
+            return [ranking[position] for position in range(6)
+                    for ranking in rankings if position < len(ranking)][:6]
 
     def list_documents(self) -> list[Document]:
         with closing(self.connect()) as connection:
             return [Document.model_validate_json(row[0]) for row in connection.execute(
                 "SELECT payload FROM documents ORDER BY report_date, doc_id"
+            )]
+
+    def list_passages(self) -> list[Passage]:
+        """One committed snapshot for W2's StoredPassageRetriever handoff."""
+        with closing(self.connect()) as connection:
+            return [Passage.model_validate_json(row[0]) for row in connection.execute(
+                "SELECT p.payload FROM passages p JOIN documents d ON p.doc_id = d.doc_id "
+                "ORDER BY p.passage_id"
             )]
 
     def get_passage(self, passage_id: str) -> Passage | None:

@@ -522,3 +522,139 @@ def test_index_failure_rolls_back_upload(client, tmp_path, monkeypatch):
     assert len(stored_passages(tmp_path)) == 1
     assert len(list((tmp_path / 'uploads').iterdir())) == 1
     assert [p.passage_id for p in get_storage().retrieve('shelters', [doc_id])] == original_ids
+
+
+@pytest.fixture
+def w4_corpus(client):
+    """Upload the real W4 TXT inputs with normal production ingestion wiring."""
+    from app.storage.database import get_storage
+    root = Path(__file__).resolve().parents[2]
+    manifest = json.loads((root / 'corpus/manifest.json').read_text(encoding='utf-8'))
+    cases = json.loads((root / 'eval/questions.json').read_text(encoding='utf-8'))
+    uploaded = {}
+    for document in sorted(manifest['documents'], key=lambda row: row['heldout']):
+        path = root / 'corpus' / document['file']
+        response = client.post('/documents', files={
+            'file': (path.name, path.read_bytes(), document['media_type']),
+        }, data={key: document[key] for key in ('title', 'report_date', 'source_url')})
+        assert response.status_code == 201, response.text
+        uploaded[document['doc_id']] = response.json()
+    return uploaded, cases, get_storage()
+
+
+@pytest.mark.parametrize('case_number', range(7), ids=lambda n: f'W4-{n + 1:02}')
+def test_w4_questions_retrieve_gold_evidence_and_resolve_citations(
+        client, w4_corpus, model_env, monkeypatch, case_number):
+    from app.storage.database import _storage
+    uploaded, evaluation, storage = w4_corpus
+    case = evaluation['questions'][case_number]
+    selected = [uploaded[key]['doc_id'] for key in case['selected_document_ids']]
+    model_calls = []
+
+    def respond(request):
+        prompt = json.loads(request.content)['contents'][0]['parts'][0]['text']
+        context = json.loads(prompt.split('INPUT_JSON:\n', 1)[1])
+        model_calls.append(context)
+        assert len(context['passages']) <= 6
+        assert {p['doc_id'] for p in context['passages']} <= set(selected)
+        citations = []
+        for expected in case['supporting_passages']:
+            document = uploaded[expected['doc_id']]
+            passage = next((p for p in context['passages']
+                            if p['doc_id'] == document['doc_id'] and expected['quote'] in p['text']), None)
+            assert passage is not None, f"Missing W4 gold evidence for {case['id']}"
+            for field in ('title', 'report_date', 'source_url'):
+                assert passage[field] == document[field]
+            assert passage['page'] is None
+            citations.append({'passage_id': passage['passage_id'], 'quote': expected['quote']})
+        result = {'status': 'answered', 'claims': [
+            {'text': case['expected_answer'], 'citations': citations},
+        ]}
+        return httpx.Response(200, json={'modelVersion': 'test', 'candidates': [{
+            'finishReason': 'STOP', 'content': {'parts': [{'text': json.dumps(result)}]}}]})
+
+    mock_model_transport(model_env, monkeypatch, respond)
+    expected = storage.retrieve(case['question'], selected)
+    assert expected
+    # Same result regardless of selection order or losing process-local indexes.
+    assert storage.retrieve(case['question'], list(reversed(selected))) == expected
+    _storage.cache_clear()
+    response = client.post('/ask', json={'question': case['question'], 'doc_ids': selected})
+    assert response.status_code == 200, response.text
+    answer = AskResponse.model_validate(response.json())
+    assert answer.status == 'answered'
+    assert answer.answer == case['expected_answer']
+    assert len(model_calls) == 1
+    for claim in answer.claims:
+        for citation in claim.citations:
+            passage = client.get('/passages/' + citation.passage_id).json()
+            assert citation.quote in passage['text']
+            assert citation.doc_id in selected
+            for field in ('doc_id', 'title', 'report_date', 'source_url', 'page'):
+                assert citation.model_dump(mode='json')[field] == passage[field]
+
+
+def test_w4_stored_retriever_refresh_and_snapshot_citations(client, w4_corpus, tmp_path):
+    from app.retrieval import BM25Index, StoredPassageRetriever
+    uploaded, evaluation, storage = w4_corpus
+    selected = [uploaded['articles-2026']['doc_id']]
+    query = evaluation['questions'][0]['question']
+    search = StoredPassageRetriever(storage.list_passages)
+    expected = search(query, selected)
+    assert expected
+    snapshot = tmp_path / 'bm25.json'
+    search.save(snapshot)
+    restarted = BM25Index.load(snapshot)
+    assert restarted.retrieve(query, selected) == expected
+    for passage in restarted.retrieve(query, selected):
+        assert client.get('/passages/' + passage.passage_id).json() == passage.model_dump(mode='json')
+    fresh = upload(client, b'Zephyrlight is the name of the new shelter.').json()
+    assert search('Zephyrlight', [fresh['doc_id']])
+    assert search(query, selected) == expected
+    assert search('Zephyrlight', selected) == []
+
+
+def test_w4_chunks_preserve_transcript_boundaries_and_metadata():
+    from app.ingestion import extract_text_pages, ingest_document
+    root = Path(__file__).resolve().parents[2]
+    documents = json.loads((root / 'corpus/manifest.json').read_text(encoding='utf-8'))['documents']
+    for document in documents:
+        path = root / 'corpus' / document['file']
+        pages = extract_text_pages(document['doc_id'], path)
+        chunks = ingest_document(path, document)
+        assert ''.join(chunk.text for chunk in chunks) == path.read_bytes().decode('utf-8-sig')
+        assert chunks == ingest_document(path, document)
+        for chunk in chunks:
+            assert any(chunk.text in page.text for page in pages)
+            assert len(chunk.text.split()) <= 500
+            assert chunk.page is None
+            assert chunk.doc_id == document['doc_id']
+            assert chunk.title == document['title']
+            assert chunk.report_date.isoformat() == document['report_date']
+            assert str(chunk.source_url) == document['source_url']
+
+
+def test_w4_insufficient_evidence_uses_normal_answer_path(client, w4_corpus, model_env, monkeypatch):
+    uploaded, evaluation, storage = w4_corpus
+    case = evaluation['questions'][7]
+    selected = [uploaded[key]['doc_id'] for key in case['selected_document_ids']]
+    calls = []
+    assert case['expected_status'] == 'insufficient_evidence'
+    assert storage.retrieve(case['question'], selected)  # Lexical matches alone are not an answer.
+
+    def respond(request):
+        context = json.loads(json.loads(request.content)['contents'][0]['parts'][0]['text'].split(
+            'INPUT_JSON:\n', 1)[1])
+        calls.append(context)
+        assert {p['doc_id'] for p in context['passages']} <= set(selected)
+        return httpx.Response(200, json={'modelVersion': 'test', 'candidates': [{
+            'finishReason': 'STOP', 'content': {'parts': [{'text': json.dumps({
+                'status': 'insufficient_evidence', 'claims': []})}]}}]})
+
+    mock_model_transport(model_env, monkeypatch, respond)
+    response = client.post('/ask', json={'question': case['question'], 'doc_ids': selected})
+    assert response.status_code == 200
+    assert len(calls) == 1
+    assert response.json()['status'] == 'insufficient_evidence'
+    assert response.json()['claims'] == []
+    assert 'enough evidence' in response.json()['answer']

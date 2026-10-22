@@ -14,8 +14,20 @@ from rank_bm25 import BM25Plus
 from app.contracts import Passage
 
 
+# Question scaffolding and common function words otherwise dominate long reports.
+# Keep substantive terms, dates, negation and identifiers unchanged; no stemming.
+_STOP_WORDS = frozenset("""
+a an the of to in on for by as at and or are is was were be been being it its
+this that these those with from what which who when where why how did does do
+has have had would could should will can according supplied original section
+between same their them they her his he she our your you we than then into about
+also give
+""".split())
+
+
 def _tokens(text: str) -> list[str]:
-    return re.findall(r"\w+", text.casefold())
+    return [word for word in re.findall(r"\w+", text.casefold())
+            if word not in _STOP_WORDS]
 
 
 class BM25Index:

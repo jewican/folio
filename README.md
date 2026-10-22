@@ -158,8 +158,9 @@ stored passages on the first retrieval after restart and detects new uploads fro
 other workers. IDs and text remain unchanged.
 
 `POST /ask` accepts `{"question":"How many shelters opened?","doc_ids":["doc_ID"]}`.
-It retrieves up to six passages only from selected documents, sends evidence to
-the configured model, and builds answer prose from validated cited claims.
+It ranks each selected document independently and interleaves up to six passages,
+sends evidence to the configured model, and builds answer prose from validated
+cited claims.
 Citation metadata comes from storage. Invalid IDs, quotes, or output produce 502;
 provider timeouts produce 504. Empty retrieval or a model finding of insufficient
 evidence returns 200 with `status: "insufficient_evidence"` and no claims.

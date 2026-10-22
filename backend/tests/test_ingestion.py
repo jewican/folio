@@ -123,3 +123,21 @@ def test_invalid_pdf(tmp_path, kind):
     with pytest.raises(ExtractionError) as error:
         ingest_document(path, dict(doc_id="doc", title="Report", report_date="2026-10-20"))
     assert error.value.code == ("unsupported_file_type" if kind == "fake" else "invalid_document")
+
+
+@pytest.mark.parametrize('markers', [
+    ('===== PDF PAGE 001 / 002 =====', '===== PDF PAGE 002 / 002 ====='),
+    ('========== PAGE 1 OF 2 ==========', '========== PAGE 2 OF 2 =========='),
+])
+def test_w4_transcript_marker_formats_do_not_mix_pages(tmp_path, markers):
+    path = tmp_path / 'transcript.txt'
+    text = 'Source header\r\n' + markers[0] + '\r\nFirst page.\r\n' + markers[1] + '\r\nSecond page.'
+    path.write_bytes(text.encode('utf-8'))
+    pages = extract_text_pages('doc', path)
+    assert [page.page for page in pages] == [None, 1, 2]
+    assert ''.join(page.text for page in pages) == text
+    passages = ingest_document(path, dict(doc_id='doc', title='Report', report_date='2026-05-25'))
+    assert len(passages) == 3
+    assert ''.join(p.text for p in passages) == text
+    assert all(p.page is None for p in passages)
+    assert passages == ingest_document(path, dict(doc_id='doc', title='Report', report_date='2026-05-25'))

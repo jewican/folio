@@ -125,3 +125,23 @@ def test_real_document_retrieval():
     assert "confidential funds" in result[0].text.lower()
     assert all(p.page is None for p in result)
     assert index.retrieve("confidential funds", ["later"])[0].passage_id == "held-out"
+
+
+def test_question_scaffolding_does_not_displace_substantive_evidence():
+    boilerplate = passage('boilerplate', 'doc', 'According to the supplied document, what did she do? ' * 20)
+    evidence = passage('evidence', 'doc', 'The confidential-fund amounts were five million.')
+    index = BM25Index([boilerplate, evidence])
+    assert index.retrieve('According to the supplied document, what confidential-fund amounts?',
+                          ['doc'], k=1) == [evidence]
+    assert index.retrieve('what did she do', ['doc']) == []
+
+
+def test_snapshot_round_trip_preserves_citation_fields(tmp_path):
+    row = passage('evidence', 'doc', 'Résumé — ₱500.\nExact quote.')
+    from pydantic import HttpUrl
+    row.source_url = HttpUrl('https://example.org/source')
+    row.page = 7
+    index = BM25Index([row])
+    path = tmp_path / 'index.json'
+    index.save(path)
+    assert BM25Index.load(path).retrieve('Exact quote', ['doc']) == [row]
