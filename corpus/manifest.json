@@ -8,7 +8,13 @@
       "source_url": "https://media.philstar.com/editorial/documents/articles-of-impeachment-sara-duterte-2026.pdf",
       "heldout": false,
       "status": "ready",
-      "text_type": "ocr"
+      "text_type": "ocr",
+      "media_type": "text/plain",
+      "encoding": "utf-8",
+      "size_bytes": 67586,
+      "sha256": "ba11441b28b5320140c5d4e31723b4b3ab59ad4b6a38a937c69102e25d03a6cb",
+      "original_source_verified": false,
+      "provenance_notes": "Existing OCR transcript; original PDF unavailable locally. Report date is supplied manifest metadata and is not established independently by this transcript."
     },
     {
       "doc_id": "committee-report-261",
@@ -18,7 +24,13 @@
       "source_url": "https://docs.congress.hrep.online/legisdocs/first_20/CR00261.pdf",
       "heldout": false,
       "status": "ready",
-      "text_type": "ocr"
+      "text_type": "ocr",
+      "media_type": "text/plain",
+      "encoding": "utf-8",
+      "size_bytes": 217983,
+      "sha256": "d778a487d3153161a0b3bfb90858f500a4f6a3a595ef6cff599cf901eff3cc62",
+      "original_source_verified": false,
+      "provenance_notes": "Existing OCR transcript; original PDF unavailable locally. Header/manifest say report 261 while page 1 OCR says 201. Supplied report date is May 5; page 52 contains May 4. Do not infer a corrected number/date or use corrupted tables as verified evidence."
     },
     {
       "doc_id": "sara-duterte-answer-2026",
@@ -29,7 +41,13 @@
       "transcription_reference": "https://tordecilla.github.io/duterte-impeachment-working-draft/defense-answer/",
       "heldout": false,
       "status": "ready",
-      "text_type": "ai_assisted_transcription"
+      "text_type": "ai_assisted_transcription",
+      "media_type": "text/plain",
+      "encoding": "utf-8",
+      "size_bytes": 134060,
+      "sha256": "aa3c812bc8a8a9041a9335cb8411dd28752e275b2be7bf11561f3938d67b250a",
+      "original_source_verified": false,
+      "provenance_notes": "AI-assisted transcription from transcription_reference; signed original unavailable locally. Filing date appears in the transcript. source_url identifies the official document collection, not the exact transcription."
     },
     {
       "doc_id": "sc-press-briefer-2026-08-05",
@@ -39,7 +57,13 @@
       "source_url": "https://sc.judiciary.gov.ph/press-briefer-august-05-2026/",
       "heldout": false,
       "status": "ready",
-      "text_type": "webpage_excerpt"
+      "text_type": "webpage_excerpt",
+      "media_type": "text/plain",
+      "encoding": "utf-8",
+      "size_bytes": 3056,
+      "sha256": "a968249767eb979be9014ddedf7f128c0472e11ca5ea6f52992bd059786a158d",
+      "original_source_verified": false,
+      "provenance_notes": "Impeachment-only webpage excerpt, not full resolutions. Embedded document label sc-press-briefer-2026-08-05-sara-duterte is an alias; use the manifest doc_id for evaluation. Publisher fidelity is unverified."
     },
     {
       "doc_id": "house-press-10322-2026-10-13",
@@ -49,7 +73,13 @@
       "source_url": "https://congress.gov.ph/index.php/media/press-releases/10322",
       "heldout": true,
       "status": "ready",
-      "text_type": "paraphrased_summary_not_verbatim"
+      "text_type": "paraphrased_summary_not_verbatim",
+      "media_type": "text/plain",
+      "encoding": "utf-8",
+      "size_bytes": 2774,
+      "sha256": "a5820ab69d549a3001caa9d68aad849c585d90b7c66f29391e721f29dc979d43",
+      "original_source_verified": false,
+      "provenance_notes": "Demo-authored paraphrase, not a verbatim official release. Local exact quotes refer to this summary only. Keep excluded from initial upload; original-source fidelity is unverified."
     }
   ]
 }
