@@ -5,10 +5,10 @@ reports, cited answers, and evidence from both versions of a report comparison.
 
 Next.js App Router lives in `web/`, FastAPI in `backend/`. Health, document upload,
 document listing, and passage lookup work with local SQLite and original files.
-Basic TXT/PDF extraction is available behind a replaceable ingestion callable.
-BM25, the feature UI, and answer/comparison route implementations remain pending;
-`/ask` and `/compare` return typed 501 stubs. A backend-only Gemini client and
-live smoke command are available.
+W2's TXT/PDF extraction and selection-scoped BM25 power `/ask`, which uses the
+configured Gemini Flash model and validates passage IDs and exact citation quotes.
+Unsupported questions return an explicit insufficient-evidence response.
+`/compare` remains a typed 501 stub. A backend-only live model smoke command is available.
 
 Read [the sprint plan](docs/sprint-plan.md) and [API contract v1](docs/api-contract.md)
 before starting. The sprint plan was promoted from `.local/` and updated to Next.js.
@@ -151,15 +151,18 @@ Document/passages are saved in one SQLite transaction after extraction succeeds;
 failed uploads remove their original file and do not appear in the document list.
 Passage IDs and exact text survive restarts and repeat uploads.
 
-W2 handoff: `app.storage.ingestion.Ingestor` receives keyword arguments `doc_id`,
-`path` (local `Path`), `title`, `report_date` (`date`), `source_url` (`HttpUrl | None`),
-and `media_type`; it returns `list[app.contracts.Passage]`. Preserve the assigned
-metadata and give every passage a unique immutable ID, readable text, and a
-physical PDF page (TXT uses null). Raise `InvalidDocument` for unusable input.
-W1 owns file persistence and the SQLite transaction. Replace the callable returned
-by `get_ingestor`, or override that FastAPI dependency, to connect W2 without
-editing routes. The fallback chunks text at 2,000 characters within each page;
-indexing/retrieval integration is pending W2's implementation.
+W1's `app.storage.ingestion` adapter calls W2's `ingest_document`; W1 owns
+persistence. Upload builds a replacement W2 `BM25Index` before committing records,
+so indexing failures also roll back the upload. The in-memory index rebuilds from
+stored passages on the first retrieval after restart and detects new uploads from
+other workers. IDs and text remain unchanged.
+
+`POST /ask` accepts `{"question":"How many shelters opened?","doc_ids":["doc_ID"]}`.
+It retrieves up to six passages only from selected documents, sends evidence to
+the configured model, and builds answer prose from validated cited claims.
+Citation metadata comes from storage. Invalid IDs, quotes, or output produce 502;
+provider timeouts produce 504. Empty retrieval or a model finding of insufficient
+evidence returns 200 with `status: "insufficient_evidence"` and no claims.
 
 | Operation | Purpose |
 | --- | --- |
