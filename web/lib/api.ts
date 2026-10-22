@@ -3,6 +3,7 @@
 
 import {
   answerSampleQuestion,
+  compareSampleReports,
   findSamplePassage,
   sampleDocuments,
   sampleQuestions,
@@ -10,6 +11,8 @@ import {
 import type {
   AskRequest,
   AskResponse,
+  CompareRequest,
+  CompareResponse,
   DocumentList,
   ErrorDetail,
   FolioDocument,
@@ -62,9 +65,7 @@ export async function listDocuments(): Promise<FolioDocument[]> {
 export async function ask(body: AskRequest): Promise<AskResponse> {
   if (USING_SAMPLE_DATA) {
     const started = performance.now();
-    const missing = body.doc_ids.find(
-      (id) => !sampleDocuments.some((d) => d.doc_id === id),
-    );
+    const missing = body.doc_ids.find((id) => !findSampleDocument(id));
     if (missing) {
       throw new ApiError(
         "A selected document was not found.",
@@ -83,6 +84,42 @@ export async function ask(body: AskRequest): Promise<AskResponse> {
     };
   }
   return request<AskResponse>("/ask", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+export async function compare(body: CompareRequest): Promise<CompareResponse> {
+  if (USING_SAMPLE_DATA) {
+    const started = performance.now();
+    const older = findSampleDocument(body.older_doc_id);
+    const newer = findSampleDocument(body.newer_doc_id);
+    if (!older || !newer) {
+      throw new ApiError(
+        "A selected document was not found.",
+        "document_not_found",
+        404,
+      );
+    }
+    if (older.report_date >= newer.report_date) {
+      throw new ApiError(
+        "The older report must have an earlier report date than the newer one.",
+        "invalid_selection",
+        422,
+      );
+    }
+    await wait(1400);
+    return {
+      ...compareSampleReports(body),
+      meta: {
+        retrieval_mode: "bm25",
+        elapsed_ms: Math.round(performance.now() - started),
+        cached: false,
+      },
+    };
+  }
+  return request<CompareResponse>("/compare", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -143,7 +180,7 @@ async function sampleUpload(input: UploadRequest): Promise<FolioDocument> {
     passageCount = paragraphs.length;
   }
 
-  return {
+  const doc: FolioDocument = {
     doc_id: `doc_upload_${Date.now().toString(36)}`,
     title: input.title,
     filename: file.name,
@@ -154,7 +191,15 @@ async function sampleUpload(input: UploadRequest): Promise<FolioDocument> {
     passage_count: passageCount,
     status: "ready",
   };
+  sampleUploads.push(doc);
+  return doc;
 }
+
+// Reports uploaded in sample mode, so ask and compare can find them this session.
+const sampleUploads: FolioDocument[] = [];
+
+const findSampleDocument = (docId: string) =>
+  [...sampleDocuments, ...sampleUploads].find((d) => d.doc_id === docId);
 
 export async function getPassage(passageId: string): Promise<Passage> {
   if (USING_SAMPLE_DATA) {

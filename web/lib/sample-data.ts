@@ -4,8 +4,11 @@
 import type {
   AskRequest,
   AskResponse,
+  Change,
   Citation,
   Claim,
+  CompareRequest,
+  CompareResponse,
   FolioDocument,
   Passage,
 } from "@/lib/types";
@@ -266,5 +269,145 @@ export function answerSampleQuestion({
     status: "answered",
     answer: claims.map((c) => c.text).join(" "),
     claims,
+  };
+}
+
+type SampleChange = { keywords: string[]; change: Change };
+
+// POST /compare for doc_older -> doc_newer. Each item follows the contract's
+// evidence rules: `updated` and `unresolved` cite both versions, `added` cites
+// only the newer one and asserts no earlier state.
+const sampleChanges: SampleChange[] = [
+  {
+    keywords: ["shelter"],
+    change: {
+      kind: "updated",
+      summary: "The number of open shelters in the northern district rose from ten to twelve.",
+      before: "Ten shelters were open in the northern district.",
+      after: "Twelve shelters were open after two schools were converted on October 20.",
+      older_citations: [
+        cite("pas_older_003", "Ten shelters are open in the northern district."),
+      ],
+      newer_citations: [
+        cite(
+          "pas_newer_002",
+          "Twelve shelters are open in the northern district after two schools were converted on October 20.",
+        ),
+      ],
+    },
+  },
+  {
+    keywords: ["evacuat", "resident"],
+    change: {
+      kind: "updated",
+      summary: "The evacuation count was revised upward after door-to-door checks.",
+      before: "About 1,200 residents were evacuated overnight.",
+      after: "About 1,450 residents, after checks on Mill Road and Station Street.",
+      older_citations: [
+        cite("pas_older_002", "Emergency services evacuated about 1,200 residents overnight"),
+      ],
+      newer_citations: [
+        cite(
+          "pas_newer_003",
+          "The evacuation count was revised to about 1,450 residents after door-to-door checks on Mill Road and Station Street.",
+        ),
+      ],
+    },
+  },
+  {
+    keywords: ["bridge", "route 9", "road"],
+    change: {
+      kind: "updated",
+      summary: "The Route 9 bridge went from fully closed to one lane open.",
+      before: "Closed while engineers inspected its supports, with no reopening date.",
+      after: "One lane open from 6 a.m. on October 22; heavy vehicles still barred.",
+      older_citations: [
+        cite(
+          "pas_older_004",
+          "The Route 9 bridge remains closed while engineers inspect its supports.",
+        ),
+      ],
+      newer_citations: [
+        cite(
+          "pas_newer_004",
+          "Engineers cleared the Route 9 bridge for one lane of traffic from 6 a.m. on October 22.",
+        ),
+      ],
+    },
+  },
+  {
+    keywords: ["river", "level", "flood"],
+    change: {
+      kind: "unresolved",
+      summary:
+        "Both reports describe the river level, but one gives a peak height and the other an overnight fall, so the current level can't be worked out from them.",
+      before: "The river peaked at 4.8 metres, more than a metre above flood stage.",
+      after: "The river fell by 40 centimetres overnight and remains above flood stage at several gauges.",
+      older_citations: [
+        cite(
+          "pas_older_001",
+          "the river peaked at 4.8 metres, more than a metre above flood stage",
+        ),
+      ],
+      newer_citations: [
+        cite(
+          "pas_newer_001",
+          "The Alder River fell by 40 centimetres overnight",
+        ),
+      ],
+    },
+  },
+  {
+    keywords: ["shelter", "capacity", "eastgate"],
+    change: {
+      kind: "added",
+      summary: "The newer report says the Eastgate centre is close to capacity.",
+      before: null,
+      after: "Officials said the Eastgate centre is close to capacity.",
+      older_citations: [],
+      newer_citations: [
+        cite("pas_newer_002", "Officials said the Eastgate centre is close to capacity."),
+      ],
+    },
+  },
+];
+
+export const DEFAULT_COMPARE_QUESTION = "What changed between these reports?";
+
+/**
+ * Compares like POST /compare would, minus `meta`. Only doc_older -> doc_newer
+ * has sample evidence; a question that names a topic narrows the changes.
+ */
+export function compareSampleReports({
+  older_doc_id,
+  newer_doc_id,
+  question,
+}: CompareRequest): Omit<CompareResponse, "meta"> {
+  const asked = question ?? DEFAULT_COMPARE_QUESTION;
+  const base = { older_doc_id, newer_doc_id, question: asked };
+
+  if (older_doc_id !== "doc_older" || newer_doc_id !== "doc_newer") {
+    return {
+      ...base,
+      status: "insufficient_evidence",
+      summary:
+        "Sample mode only has comparison evidence for the October 20 first report and the October 21 update, so no supported changes can be shown for this pair.",
+      changes: [],
+    };
+  }
+
+  const normalized = asked.toLowerCase();
+  const matching = sampleChanges.filter((c) =>
+    c.keywords.some((keyword) => normalized.includes(keyword)),
+  );
+  const changes = (matching.length > 0 ? matching : sampleChanges).map(
+    (c) => c.change,
+  );
+
+  return {
+    ...base,
+    status: "compared",
+    summary: changes.map((c) => c.summary).join(" "),
+    changes,
   };
 }
