@@ -346,3 +346,88 @@ def test_embedding_configuration_failure_is_offline_bm25(
     storage = hybrid_storage(tmp_path, rows)
     assert storage.retrieve('shelters', ['old']) == rows
     assert calls == []
+
+
+def test_hybrid_filters_whole_corpus_before_embedding(embedding_transport):
+    import json
+    from app.retrieval.hybrid import HybridRetriever
+
+    calls, _ = embedding_transport
+    old = passage('old', 'z-old', 'Shelters opened.')
+    future = passage('future', 'a-new', 'Future-only secret evidence.')
+    search = HybridRetriever(None)
+    # A whole-corpus caller must neither embed nor rank unselected reports.
+    assert search.rank('shelters', [future], BM25Index([future]), ['z-old']) == [[]]
+    assert calls == []
+
+    class MemoryVectors:
+        def load(self, rows):
+            assert rows == [old]
+            return {}
+        def save(self, rows, vectors):
+            assert rows == [old]
+
+    search = HybridRetriever(MemoryVectors())
+    assert search.rank('shelters', [old, future], BM25Index([old, future]), ['z-old']) == [[old]]
+    inputs = [item['content']['parts'][0]['text'] for call in calls
+              for item in json.loads(call.content)['requests']]
+    assert not any('Future-only' in text for text in inputs)
+
+
+@pytest.mark.parametrize('mode', ['bm25', 'hybrid'])
+def test_real_report_pair_upload_restart_and_strict_dates(tmp_path, embedding_transport, mode):
+    from pathlib import Path
+    from app.ingestion import ingest_document
+    from app.storage.database import Storage
+
+    examples = Path(__file__).resolve().parents[1] / 'app/retrieval/examples'
+    reports = []
+    for doc_id, day, number in [('z-older', '2024-10-22', '005'),
+                                ('a-newer', '2024-10-27', '024')]:
+        reports.append(ingest_document(examples / f'kristy-{day}.txt', {
+            'doc_id': doc_id, 'title': f'Kristy advisory {number}', 'report_date': day,
+            'source_url': f'https://www.nhc.noaa.gov/archive/2024/ep12/ep122024.public.{number}.shtml',
+        }))
+    older, newer = reports
+    storage = hybrid_storage(tmp_path, older)
+    # A second worker has already built its snapshot before the later upload.
+    reader = Storage(tmp_path, tmp_path / 'folio.sqlite3')
+    question = 'What changed in maximum sustained winds and minimum central pressure?'
+    original = reader.retrieve(question, ['z-older'], mode=mode)
+    assert original == older
+    from datetime import datetime, timezone
+    from app.contracts import Document
+    source = storage.upload_dir / 'newer.txt'
+    source.write_text((examples / 'kristy-2024-10-27.txt').read_text())
+    storage.save(Document(doc_id='a-newer', title=newer[0].title, filename=source.name,
+                          media_type='text/plain', report_date=newer[0].report_date,
+                          source_url=newer[0].source_url, uploaded_at=datetime.now(timezone.utc),
+                          passage_count=len(newer), status='ready'), newer, source)
+    assert reader.retrieve(question, ['a-newer'], mode=mode) == newer
+    assert reader.retrieve(question, ['z-older'], mode=mode) == original
+    assert all('45 MPH' not in p.text and '1003 MB' not in p.text for p in original)
+    restarted = Storage(tmp_path, tmp_path / 'folio.sqlite3')
+    rows = restarted.list_passages()
+    index = BM25Index(rows)
+    before, after = restarted._hybrid.compare(question, rows, index, 'z-older', 'a-newer', mode=mode)
+    assert before == older and after == newer
+    assert '75 MPH' in before[0].text and '45 MPH' in after[0].text
+    assert all(restarted.get_passage(p.passage_id) == p for p in before + after)
+    assert restarted.retrieve(question, ['z-older', 'a-newer'], mode=mode) == after + before
+    for old_id, new_id in [('a-newer', 'z-older'), ('z-older', 'z-older'), ('missing', 'a-newer')]:
+        with pytest.raises(ValueError):
+            restarted._hybrid.compare(question, rows, index, old_id, new_id, mode=mode)
+    equal_dates = [p.model_copy(update={'report_date': date(2024, 10, 22)}) for p in rows]
+    with pytest.raises(ValueError, match='strictly before'):
+        restarted._hybrid.compare(question, equal_dates, BM25Index(equal_dates),
+                                  'z-older', 'a-newer', mode=mode)
+
+
+@pytest.mark.parametrize('ids,k', [([], 3), (['old', 'old'], 3), ('old', 3),
+                                  (['old'], 0), (['old'], True)])
+def test_hybrid_rejects_invalid_selection_before_provider(embedding_transport, ids, k):
+    from app.retrieval.hybrid import HybridRetriever
+    calls, _ = embedding_transport
+    with pytest.raises(ValueError):
+        HybridRetriever(None).rank('evidence', [], BM25Index([]), ids, k)
+    assert calls == []
