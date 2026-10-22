@@ -80,6 +80,11 @@ def test_compare_generates_canonical_evidence_on_both_sides(client, model_env, m
 
     def respond(request):
         prompt = json.loads(request.content)['contents'][0]['parts'][0]['text']
+        if 'SUPPORT_INPUT_JSON:\n' in prompt:
+            review = json.loads(prompt.split('SUPPORT_INPUT_JSON:\n', 1)[1])
+            assert review['changes'][0]['older_citations'][0]['doc_id'] == older
+            assert review['changes'][0]['newer_citations'][0]['doc_id'] == newer
+            return gemini_response({'supported': True, 'reason': 'supported'})
         context = json.loads(prompt.split('INPUT_JSON:\n', 1)[1])
         sides = {p['doc_id']: p for p in context['passages']}
         result = {'status': 'compared', 'changes': [{
@@ -362,6 +367,11 @@ def mock_model_transport(model_env, monkeypatch, handler):
     monkeypatch.setattr(model_env.httpx, 'Client', lambda **kwargs: real_client(
         transport=httpx.MockTransport(handler), **kwargs,
     ))
+
+
+def gemini_response(result):
+    return httpx.Response(200, json={'modelVersion': 'test', 'candidates': [{
+        'finishReason': 'STOP', 'content': {'parts': [{'text': json.dumps(result)}]}}]})
 
 
 def test_model_request_and_result(model_env, monkeypatch):
@@ -821,7 +831,10 @@ def test_hybrid_ask_preserves_wire_contract_citations_and_comparison(
                 return httpx.Response(429, text='private quota details')
             return httpx.Response(200, json={'embeddings': [
                 {'values': [1.0] + [0.0] * 767} for _ in data['requests']]})
-        context = json.loads(data['contents'][0]['parts'][0]['text'].split('INPUT_JSON:\n', 1)[1])
+        prompt = data['contents'][0]['parts'][0]['text']
+        if 'SUPPORT_INPUT_JSON:\n' in prompt:
+            return gemini_response({'supported': True, 'reason': 'supported'})
+        context = json.loads(prompt.split('INPUT_JSON:\n', 1)[1])
         if 'older_doc_id' in context:
             sides = {p['doc_id']: p for p in context['passages']}
             assert set(sides) == {older['doc_id'], newer['doc_id']}
@@ -868,4 +881,251 @@ def test_hybrid_ask_preserves_wire_contract_citations_and_comparison(
         for citation in citations:
             assert citation.doc_id == expected
             assert citation.quote in client.get('/passages/' + citation.passage_id).json()['text']
-    assert sum(path.endswith(':generateContent') for path in calls) == 2
+    assert sum(path.endswith(':generateContent') for path in calls) == 3
+
+
+@pytest.fixture
+def comparison_provider(client, model_env, monkeypatch):
+    older = upload(client, b'10 shelters are open in the northern district.',
+                   report_date='2026-10-20').json()['doc_id']
+    newer = upload(client, b'12 shelters are open in the northern district.',
+                   report_date='2026-10-21').json()['doc_id']
+    foreign = upload(client, b'99 shelters are open elsewhere.',
+                     report_date='2026-10-22').json()['doc_id']
+    state = {'drafts': [], 'reviews': [], 'timeouts': [], 'mutate': lambda draft: None,
+             'prompts': [],
+             'verdict': {'supported': True, 'reason': 'supported'},
+             'request': {'older_doc_id': older, 'newer_doc_id': newer, 'question': 'shelters'},
+             'foreign': foreign}
+
+    def respond(request):
+        state['timeouts'].append(request.extensions['timeout']['read'])
+        prompt = json.loads(request.content)['contents'][0]['parts'][0]['text']
+        state['prompts'].append(prompt)
+        if 'SUPPORT_INPUT_JSON:\n' in prompt:
+            review = json.loads(prompt.split('SUPPORT_INPUT_JSON:\n', 1)[1])
+            state['reviews'].append(review)
+            assert {p['doc_id'] for p in review['passages']} == {older, newer}
+            if review['changes']:
+                assert all('text' not in p for p in review['passages'])
+            verdict = state['verdict']
+            if isinstance(verdict, Exception):
+                raise verdict
+            return gemini_response(verdict)
+        context = json.loads(prompt.split('INPUT_JSON:\n', 1)[1].split('\nRepair the response', 1)[0])
+        assert {p['doc_id'] for p in context['passages']} == {older, newer}
+        by_doc = {p['doc_id']: p for p in context['passages']}
+        change = {'kind': 'updated', 'summary': 'The reported shelter count rose from 10 to 12.',
+                  'before': by_doc[older]['text'], 'after': by_doc[newer]['text'],
+                  'older_citations': [{'passage_id': by_doc[older]['passage_id'],
+                                       'quote': by_doc[older]['text']}],
+                  'newer_citations': [{'passage_id': by_doc[newer]['passage_id'],
+                                       'quote': by_doc[newer]['text']}]}
+        draft = {'status': 'compared', 'changes': [change]}
+        state['mutate'](draft)
+        state['drafts'].append(draft)
+        return gemini_response(draft)
+
+    mock_model_transport(model_env, monkeypatch, respond)
+    return state
+
+
+@pytest.mark.parametrize('fault', ['unknown_id', 'foreign_id', 'swapped_sides', 'changed_quote',
+                                  'missing_older', 'missing_newer', 'blank_before',
+                                  'added_prior_state', 'insufficient_with_changes'])
+def test_compare_rejects_invalid_evidence_before_support_review(client, comparison_provider, fault):
+    state = comparison_provider
+
+    def mutate(draft):
+        change = draft['changes'][0]
+        if fault in ('unknown_id', 'foreign_id'):
+            passage_id = ('not-supplied' if fault == 'unknown_id' else
+                          next(p['passage_id'] for p in stored_passages_from_api()
+                               if p['doc_id'] == state['foreign']))
+            change['older_citations'][0]['passage_id'] = passage_id
+        elif fault == 'swapped_sides':
+            change['older_citations'], change['newer_citations'] = (
+                change['newer_citations'], change['older_citations'])
+        elif fault == 'changed_quote':
+            change['newer_citations'][0]['quote'] = '120 shelters are open in the northern district.'
+        elif fault == 'missing_older':
+            change['older_citations'] = []
+        elif fault == 'missing_newer':
+            change['newer_citations'] = []
+        elif fault == 'blank_before':
+            change['before'] = ' '
+        elif fault == 'added_prior_state':
+            change['kind'] = 'added'
+        else:
+            draft['status'] = 'insufficient_evidence'
+
+    def stored_passages_from_api():
+        from app.storage.database import get_storage
+        return [p.model_dump() for p in get_storage().list_passages()]
+
+    state['mutate'] = mutate
+    response = client.post('/compare', json=state['request'])
+    assert response.status_code == 502
+    assert response.json()['detail']['code'] == 'generation_failed'
+    assert len(state['drafts']) == 2  # Exactly one bounded repair.
+    assert state['reviews'] == []
+
+
+@pytest.mark.parametrize('reason', ['unsupported_claim', 'wrong_kind', 'incomparable_scope',
+                                   'unsupported_prior_state', 'unexplained_uncertainty'])
+def test_compare_support_rejection_fails_closed(client, comparison_provider, reason):
+    state = comparison_provider
+    state['verdict'] = {'supported': False, 'reason': reason}
+
+    def mutate(draft):
+        draft['changes'][0]['summary'] = 'The number of shelters increased by 100.'
+
+    state['mutate'] = mutate
+    response = client.post('/compare', json=state['request'])
+    assert response.status_code == 502
+    assert len(state['drafts']) == len(state['reviews']) == 2
+    # Valid IDs/quotes alone must not make the unsupported summary successful.
+    assert state['reviews'][0]['changes'][0]['summary'].endswith('100.')
+
+
+@pytest.mark.parametrize('verdict', [
+    {'supported': 'true', 'reason': 'supported'},
+    {'supported': True, 'reason': 'unsupported_claim'},
+    {'supported': True}, {},
+])
+def test_compare_malformed_support_review_fails_closed(client, comparison_provider, verdict):
+    comparison_provider['verdict'] = verdict
+    response = client.post('/compare', json=comparison_provider['request'])
+    assert response.status_code == 502
+    assert len(comparison_provider['reviews']) == 2
+
+
+def test_compare_support_repair_can_succeed(client, comparison_provider):
+    state = comparison_provider
+
+    def mutate(draft):
+        if not state['drafts']:
+            draft['changes'][0]['older_citations'][0]['passage_id'] = 'invented'
+
+    state['mutate'] = mutate
+    response = client.post('/compare', json=state['request'])
+    assert response.status_code == 200, response.text
+    assert len(state['drafts']) == 2 and len(state['reviews']) == 1
+
+
+def test_compare_support_issues_guide_single_repair_without_logging_source_text(
+        client, comparison_provider, caplog):
+    state = comparison_provider
+    issue = 'summary: numeric delta 100 lacks support in the attached quotes.'
+
+    def mutate(draft):
+        if not state['drafts']:
+            draft['changes'][0]['summary'] = 'The shelter count increased by 100.'
+            state['verdict'] = {'supported': False, 'reason': 'unsupported_claim', 'issues': [issue]}
+        else:
+            state['verdict'] = {'supported': True, 'reason': 'supported'}
+
+    state['mutate'] = mutate
+    response = client.post('/compare', json=state['request'])
+    assert response.status_code == 200, response.text
+    assert len(state['drafts']) == len(state['reviews']) == 2
+    repair = json.loads(state['prompts'][2].split('REPAIR_JSON:\n', 1)[1])
+    assert repair['support_issues'] == [issue]
+    assert issue not in caplog.text
+
+
+def test_compare_review_timeout_is_safe_and_not_retried(client, comparison_provider):
+    comparison_provider['verdict'] = httpx.ReadTimeout('private provider details')
+    response = client.post('/compare', json=comparison_provider['request'])
+    assert response.status_code == 504
+    assert response.json()['detail']['code'] == 'generation_timeout'
+    assert 'private' not in response.text
+    assert len(comparison_provider['drafts']) == len(comparison_provider['reviews']) == 1
+
+
+def test_compare_draft_review_and_repair_share_one_deadline(client, comparison_provider, monkeypatch):
+    from app.generation import answer
+    state = comparison_provider
+    clock = iter([10, 10, 20, 30, 40])
+    monkeypatch.setattr(answer, 'perf_counter', lambda: next(clock))
+
+    def mutate(draft):
+        state['verdict'] = ({'supported': False, 'reason': 'unsupported_claim'}
+                            if not state['drafts'] else {'supported': True, 'reason': 'supported'})
+
+    state['mutate'] = mutate
+    response = client.post('/compare', json=state['request'])
+    assert response.status_code == 200, response.text
+    assert state['timeouts'] == [60, 50, 40, 30]
+
+
+def test_compare_exhausted_deadline_prevents_support_call(client, comparison_provider, monkeypatch):
+    from app.generation import answer
+    clock = iter([0, 0, 61])
+    monkeypatch.setattr(answer, 'perf_counter', lambda: next(clock))
+    response = client.post('/compare', json=comparison_provider['request'])
+    assert response.status_code == 504
+    assert len(comparison_provider['drafts']) == 1
+    assert comparison_provider['reviews'] == []
+
+
+@pytest.mark.parametrize('fault', ['foreign', 'altered'])
+def test_compare_rejects_noncanonical_retrieval_before_generation(
+        client, comparison_provider, monkeypatch, fault):
+    from app.storage.database import get_storage
+    state = comparison_provider
+    storage = get_storage()
+    if fault == 'foreign':
+        passages = [p for p in storage.list_passages() if p.doc_id == state['foreign']]
+    else:
+        passages = [p.model_copy(update={'text': 'Invented evidence.'})
+                    for p in storage.list_passages() if p.doc_id == state['request']['older_doc_id']]
+    monkeypatch.setattr(storage, 'retrieve', lambda *args: passages)
+    response = client.post('/compare', json=state['request'])
+    assert response.status_code == 502
+    assert state['drafts'] == state['reviews'] == []
+
+
+def test_compare_equal_dates_and_identical_ids_are_rejected(client):
+    first = upload(client, b'10 shelters open.').json()['doc_id']
+    second = upload(client, b'12 shelters open.').json()['doc_id']
+    for newer in (first, second):
+        response = client.post('/compare', json={'older_doc_id': first, 'newer_doc_id': newer})
+        assert response.status_code == 422
+
+
+@pytest.mark.parametrize('kind', ['added', 'unresolved'])
+def test_compare_added_and_unresolved_preserve_wire_contract(client, comparison_provider, kind):
+    state = comparison_provider
+
+    def mutate(draft):
+        change = draft['changes'][0]
+        change['kind'] = kind
+        if kind == 'added':
+            change.update(before=None, older_citations=[], summary='The newer report states 12 shelters.')
+        else:
+            change['summary'] = 'The accounts differ; comparable scope cannot be established.'
+
+    state['mutate'] = mutate
+    response = client.post('/compare', json=state['request'])
+    assert response.status_code == 200, response.text
+    result = CompareResponse.model_validate(response.json())
+    assert result.changes[0].kind == kind
+    assert result.summary == result.changes[0].summary
+    assert len(state['reviews']) == 1
+
+
+@pytest.mark.parametrize('status', ['compared', 'insufficient_evidence'])
+def test_compare_empty_changes_explain_evidence_limits(client, comparison_provider, status):
+    state = comparison_provider
+
+    def mutate(draft):
+        draft.update(status=status, changes=[], explanation='The scope of the reported counts is unclear.')
+
+    state['mutate'] = mutate
+    response = client.post('/compare', json=state['request'])
+    assert response.status_code == 200
+    assert response.json()['changes'] == []
+    assert response.json()['summary'] == ('No supported changes identified.' if status == 'compared'
+                                          else 'The scope of the reported counts is unclear.')
+    assert len(state['reviews']) == (0 if status == 'compared' else 1)
