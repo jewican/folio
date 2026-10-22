@@ -4,9 +4,11 @@
 
 Folio turns a pile of dated public reports into **cited answers** and **trustworthy before/after comparisons**. Every claim links back to the exact quote, page, date, and publisher it came from. If the evidence isn't there, Folio says so instead of guessing.
 
-| Slides | Business Plan | Demo Video |
-| :---: | :---: | :---: |
-| [View](https://drive.google.com/file/d/1N3WFr5wsaiRdHwgB7LNKq7YF01UXPoFQ/view?usp=drive_link) | [View](https://drive.google.com/file/d/14vPPITAEuaf6VaYoBpopxnMhoU9mzAAj/view?usp=drive_link) | [Watch](https://github.com/xienshane) |
+| File | Link | 
+| --- | --- | 
+| Slides | [Link](https://drive.google.com/file/d/1N3WFr5wsaiRdHwgB7LNKq7YF01UXPoFQ/view?usp=drive_link) | 
+| Business Plan | [Link](https://drive.google.com/file/d/14vPPITAEuaf6VaYoBpopxnMhoU9mzAAj/view?usp=drive_link) | 
+| Demo Video | [Link](https://drive.google.com/file/d/17Q3dbk6T3XcBNkhT6EgEn_o5A6-PK21O/view?usp=drive_link) |
 
 ---
 
