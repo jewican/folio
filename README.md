@@ -67,6 +67,24 @@ cd backend
 python -m app.generation.smoke
 ```
 
+To verify the full real API path with W4's documents, run:
+
+```sh
+cd backend
+python -m app.generation.api_smoke
+```
+
+This check uses temporary SQLite/files, normal FastAPI routes and the real model
+client. It uploads all five W4 TXT files, checks error responses, rebuilds the
+index from saved passages, then requests two answers and one insufficient-evidence
+result. Each returned citation must resolve to a retrieved passage with exact
+quotes and matching stored source metadata. It refuses dependency overrides,
+uses no fixtures or mocked model responses, and stops on the first generation
+failure. Temporary uploads do not change the application corpus. The ignored
+`backend/data/api-smoke.json` receipt records completed checks and real responses;
+only `success: true` confirms the complete live path. Automated unit tests still
+simulate provider failures separately for deterministic error coverage.
+
 The command prints and records the UTC test time, configured model ID, returned
 `modelVersion`, response text and elapsed milliseconds in the ignored local file
 `backend/data/model-smoke.json`. It exits nonzero and records a safe error on
@@ -81,7 +99,10 @@ usable provider response; `configuration` means local settings are invalid;
 `output_token_limit` means the reply was truncated (try a larger output limit).
 HTTP 400 indicates a rejected request (including possible key/configuration
 issues), 401/403 credential or access problems, 404 an unavailable model/endpoint,
-and 429 quota/rate limiting. Provider response bodies and headers are never recorded.
+402 a provider payment/quota rejection, and 429 quota/rate limiting. Provider
+response bodies and headers are never recorded. Public 502 messages distinguish
+billing/quota, credential/access, and rate-limit failures. Logs include only safe
+reason/status diagnostics; no provider body, prompts or keys.
 
 Backend routes can use `Depends(get_model_client)` from
 `app.generation.client`, then `client.generate(prompt)` in a synchronous route (FastAPI runs it in its thread pool). The client follows
@@ -103,6 +124,14 @@ template now default to that model, following Google's
 A genuine generation request returned HTTP **402** in **461 ms**. Network access
 and model discovery work; generation and a working model version remain
 unconfirmed until the API connection's payment/access issue is resolved.
+
+Full API check on 2026-10-22 at 05:40 UTC: all five W4 inputs uploaded and
+indexed (194 passages), invalid-document/selection requests returned the expected
+404/422/415 errors, and empty retrieval returned insufficient evidence. A real
+`/ask` request for W4's Supreme Court question reached the provider, which again
+returned HTTP 402. The API returned a safe 502 billing/quota message. No live
+answer or citation success is claimed; restore provider access and rerun the
+full API check. There is no mock or saved-answer fallback in backend routes.
 
 ```sh
 npm run lint

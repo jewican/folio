@@ -15,6 +15,7 @@ from app.contracts import (
     Document, DocumentList, Health, Passage, ResponseMeta,
 )
 from app.generation.answer import generate_answer
+from app.generation.client import GenerationError
 from app.storage.database import Storage, get_storage
 from app.storage.ingestion import Ingestor, InvalidDocument, ExtractionError, get_ingestor
 
@@ -124,6 +125,11 @@ def ask(request: AskRequest, storage: Annotated[Storage, Depends(get_storage)]):
     if not set(request.doc_ids) <= ready:
         raise upload_error(404, "document_not_found", "A selected document was not found.")
     passages = storage.retrieve(request.question, request.doc_ids)
+    # Enforce the boundary even if a retriever accidentally returns foreign or
+    # altered rows. Only canonical stored evidence can reach the model.
+    if any(p.doc_id not in request.doc_ids or storage.get_passage(p.passage_id) != p
+           for p in passages):
+        raise GenerationError(reason="invalid_evidence")
     claims = generate_answer(request.question, passages) if passages else []
     return AskResponse(
         question=request.question, doc_ids=request.doc_ids,

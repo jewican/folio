@@ -1,6 +1,7 @@
 """Minimal Gemini REST client; usable as a FastAPI dependency."""
 import os
 import re
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from time import perf_counter
@@ -9,6 +10,8 @@ import httpx
 from dotenv import load_dotenv
 from fastapi.responses import JSONResponse
 from pydantic import SecretStr
+
+logger = logging.getLogger(__name__)
 
 
 class GenerationError(Exception):
@@ -22,13 +25,25 @@ class GenerationError(Exception):
         self.diagnostics = {"reason": "timeout" if timed_out else reason}
         if provider_http_status is not None:
             self.diagnostics["provider_http_status"] = provider_http_status
-        super().__init__(
-            "The model request timed out." if timed_out
-            else "The model request failed. Check backend configuration and provider availability."
-        )
+        message = "The model request failed. Check backend configuration and provider availability."
+        if timed_out:
+            message = "The model request timed out."
+        elif reason == "configuration":
+            message = "The backend model configuration is missing or invalid."
+        elif provider_http_status == 402:
+            message = "The model provider rejected generation. Check provider billing and quota."
+        elif provider_http_status in (401, 403):
+            message = "The model provider rejected backend credentials or access."
+        elif provider_http_status == 429:
+            message = "The model provider is rate limited or out of quota. Try again later."
+        elif reason == "invalid_evidence":
+            message = "The model answer could not be validated against the selected evidence."
+        super().__init__(message)
 
 
 async def generation_error_handler(request, exc: GenerationError):
+    logger.warning("Generation failed: reason=%s provider_status=%s",
+                   exc.diagnostics["reason"], exc.diagnostics.get("provider_http_status"))
     return JSONResponse(
         status_code=exc.status_code,
         content={"detail": {"code": exc.code, "message": str(exc)}},
@@ -66,11 +81,14 @@ class GeminiClient:
             raise GenerationError(reason="configuration")
         return cls(SecretStr(key), model, timeout, tokens)
 
-    def generate(self, prompt: str) -> ModelResult:
+    def generate(self, prompt: str, *, json_output: bool = False) -> ModelResult:
         """One uncached call, with network timeouts and no implicit retries."""
         if not prompt.strip():
             raise ValueError("Prompt must not be blank.")
         started = perf_counter()
+        config = {"maxOutputTokens": self.max_output_tokens}
+        if json_output:
+            config["responseMimeType"] = "application/json"
         try:
             with httpx.Client(timeout=self.timeout_seconds) as client:
                 response = client.post(
@@ -78,7 +96,7 @@ class GeminiClient:
                     headers={"x-goog-api-key": self.api_key.get_secret_value()},
                     json={
                         "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-                        "generationConfig": {"maxOutputTokens": self.max_output_tokens},
+                        "generationConfig": config,
                     },
                 )
                 response.raise_for_status()

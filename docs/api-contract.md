@@ -15,7 +15,11 @@ BM25, and the configured Gemini Flash client. Upload builds a replacement index
 before committing; retrieval rebuilds from saved passages after restart. Answers
 validate citation IDs and exact quotes against supplied passages and use stored
 metadata. Unsupported questions return `insufficient_evidence`; invalid model
-output returns 502. Valid `/compare` requests still return 501. FastAPI performs
+output returns 502. Retrieved rows are checked against canonical storage and
+selected document membership before being sent to the provider. Generation uses
+JSON output mode. Billing/quota, credential/access and rate-limit rejections
+return safe, actionable 502 messages; timeouts return 504. There is no mock or
+saved-answer fallback. Valid `/compare` requests still return 501. FastAPI performs
 request shape validation (422).
 
 ## Operations

@@ -48,7 +48,7 @@ INPUT_JSON:
     prompt += json.dumps({"question": question, "passages": [
         passage.model_dump(mode="json") for passage in passages
     ]}, ensure_ascii=False)
-    result = get_model_client().generate(prompt)
+    result = get_model_client().generate(prompt, json_output=True)
     try:
         generated = GeneratedAnswer.model_validate_json(result.text)
         supplied = {passage.passage_id: passage for passage in passages}

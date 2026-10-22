@@ -658,3 +658,48 @@ def test_w4_insufficient_evidence_uses_normal_answer_path(client, w4_corpus, mod
     assert response.json()['status'] == 'insufficient_evidence'
     assert response.json()['claims'] == []
     assert 'enough evidence' in response.json()['answer']
+
+
+@pytest.mark.parametrize('status,phrase', [
+    (402, 'billing and quota'), (429, 'rate limited'), (403, 'credentials or access'),
+])
+def test_provider_rejections_are_actionable_and_safe(client, model_env, monkeypatch, status, phrase):
+    doc_id = upload(client, b'Ten shelters opened.').json()['doc_id']
+
+    def respond(request):
+        payload = json.loads(request.content)
+        assert payload['generationConfig']['responseMimeType'] == 'application/json'
+        return httpx.Response(status, text='private provider message and secret')
+
+    mock_model_transport(model_env, monkeypatch, respond)
+    response = client.post('/ask', json={'question': 'shelters', 'doc_ids': [doc_id]})
+    assert response.status_code == 502
+    assert response.json()['detail']['code'] == 'generation_failed'
+    assert phrase in response.json()['detail']['message']
+    assert 'private provider' not in response.text
+    assert 'secret' not in response.text
+
+
+@pytest.mark.parametrize('tamper', ['foreign', 'altered', 'missing'])
+def test_retrieval_boundary_rejects_noncanonical_evidence(client, monkeypatch, tamper):
+    from app.storage.database import get_storage
+    from app.generation import answer
+    selected = upload(client, b'Ten shelters opened.').json()['doc_id']
+    other = upload(client, b'Twenty shelters opened.').json()['doc_id']
+    storage = get_storage()
+    original = next(p for p in storage.list_passages() if p.doc_id == selected)
+    if tamper == 'foreign':
+        invalid = next(p for p in storage.list_passages() if p.doc_id == other)
+    elif tamper == 'missing':
+        invalid = original.model_copy(update={'passage_id': 'nonexistent'})
+    else:
+        invalid = original.model_copy(update={'text': 'One hundred shelters opened.'})
+    monkeypatch.setattr(storage, 'retrieve', lambda *args: [invalid])
+
+    def fail():
+        pytest.fail('Noncanonical evidence must not be sent to the provider')
+
+    monkeypatch.setattr(answer, 'get_model_client', fail)
+    response = client.post('/ask', json={'question': 'shelters', 'doc_ids': [selected]})
+    assert response.status_code == 502
+    assert response.json()['detail']['code'] == 'generation_failed'
