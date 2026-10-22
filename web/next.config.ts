@@ -2,7 +2,12 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   // Use the compiler API: CLI output capture fails in restricted build environments.
-  experimental: { useTypeScriptCli: false },
+  experimental: {
+    useTypeScriptCli: false,
+    // Branch switches can restore stale CSS from the custom Tailwind loader.
+    // Recompile development assets on startup instead of restoring that cache.
+    turbopackFileSystemCacheForDev: false,
+  },
   cacheComponents: true,
   partialPrefetching: true,
   // Use the same Tailwind loader for the Webpack build fallback. This avoids
