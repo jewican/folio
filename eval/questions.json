@@ -1,0 +1,939 @@
+{
+  "schema_version": "1.0",
+  "title": "FOLIO evaluation questions",
+  "manifest": "corpus/manifest.json",
+  "evidence_scope": "Closed-corpus evaluation of what supplied local documents state; publisher originals and real-world allegations are not independently verified.",
+  "question_counts": {
+    "factual_retrieval": 3,
+    "multi_document_reasoning": 2,
+    "temporal_reasoning": 2,
+    "insufficient_evidence": 1,
+    "before_after_update_comparison": 2
+  },
+  "stages": {
+    "before_upload": {
+      "available_document_ids": [
+        "articles-2026",
+        "committee-report-261",
+        "sara-duterte-answer-2026",
+        "sc-press-briefer-2026-08-05"
+      ],
+      "excluded_document_ids": [
+        "house-press-10322-2026-10-13"
+      ]
+    },
+    "after_upload": {
+      "available_document_ids": [
+        "articles-2026",
+        "committee-report-261",
+        "sara-duterte-answer-2026",
+        "sc-press-briefer-2026-08-05",
+        "house-press-10322-2026-10-13"
+      ]
+    }
+  },
+  "citation_rules": [
+    "IDs are manifest keys. Map them to backend-assigned immutable document IDs after upload; no passage IDs are invented.",
+    "All inputs are TXT: API page is null. source_page_reference preserves the literal embedded marker, not an independently verified PDF page. Line references are 1-based inclusive local TXT positions.",
+    "Quotes are exact local text preserving OCR characters and line breaks. Original-source fidelity is unverified.",
+    "Each factual answer claim requires a retrieved passage citation from the selected documents; comparisons require evidence from both selected versions.",
+    "Before-upload answers must not use held-out October evidence.",
+    "Keep allegations, defense arguments, committee findings, court summaries, and prosecution assessments attributed.",
+    "All global and case-specific criteria apply; semantic paraphrases of expected answers are acceptable.",
+    "For comparison cases, top-level answer/evidence/criteria apply after upload; before_upload_control supplies the separate baseline run."
+  ],
+  "source_inventory": [
+    {
+      "doc_id": "articles-2026",
+      "file": "corpus/initial/articles-of-impeachment.txt",
+      "available": true,
+      "report_date": "2026-05-11",
+      "text_type": "ocr",
+      "original_source_verified": false
+    },
+    {
+      "doc_id": "committee-report-261",
+      "file": "corpus/initial/commitee-report-261.txt",
+      "available": true,
+      "report_date": "2026-05-05",
+      "text_type": "ocr",
+      "original_source_verified": false
+    },
+    {
+      "doc_id": "sara-duterte-answer-2026",
+      "file": "corpus/initial/sara-duterte-defense.txt",
+      "available": true,
+      "report_date": "2026-05-25",
+      "text_type": "ai_assisted_transcription",
+      "original_source_verified": false
+    },
+    {
+      "doc_id": "sc-press-briefer-2026-08-05",
+      "file": "corpus/initial/sc-press-briefer.txt",
+      "available": true,
+      "report_date": "2026-08-05",
+      "text_type": "webpage_excerpt",
+      "original_source_verified": false
+    },
+    {
+      "doc_id": "house-press-10322-2026-10-13",
+      "file": "corpus/heldout/october-13-update.txt",
+      "available": true,
+      "report_date": "2026-10-13",
+      "text_type": "paraphrased_summary_not_verbatim",
+      "original_source_verified": false
+    }
+  ],
+  "missing_manifest_documents": [],
+  "evidence_flags": [
+    {
+      "type": "missing_originals",
+      "document_ids": [
+        "articles-2026",
+        "committee-report-261",
+        "sara-duterte-answer-2026"
+      ],
+      "detail": "All five manifest TXT files are present. Original scanned PDFs and signed defense filing are not present locally. Local quotations are exact, but OCR/AI-transcription fidelity and page mappings remain unverified."
+    },
+    {
+      "type": "paraphrase",
+      "document_ids": [
+        "house-press-10322-2026-10-13"
+      ],
+      "detail": "The held-out file explicitly identifies itself as a demo-authored paraphrase because direct full-text extraction was blocked. Do not present its words as official-release quotations. Original announcement and Senate record are unverified."
+    },
+    {
+      "type": "identifier_mismatch",
+      "document_ids": [
+        "sc-press-briefer-2026-08-05"
+      ],
+      "detail": "Manifest ID sc-press-briefer-2026-08-05 differs from embedded ID sc-press-briefer-2026-08-05-sara-duterte. This evaluation uses manifest IDs."
+    },
+    {
+      "type": "ocr_and_date_discrepancies",
+      "document_ids": [
+        "committee-report-261"
+      ],
+      "detail": "Manifest/header identify report 261, but page 1 OCR reads COMMITTEE REPORT NO. 201. Manifest report_date is 2026-05-05; page 52 reads May 4, 2026. Page 2 vote OCR reads 22-140-0; pages 8 and 55 give 22-10-0. These are not silently corrected. Financial tables are visibly corrupted and are not gold-answer evidence."
+    },
+    {
+      "type": "conflicting_figures",
+      "document_ids": [
+        "articles-2026",
+        "committee-report-261"
+      ],
+      "detail": "Articles page 5 says 1,992 OVP receipt names; committee page 30 says 1,922. The true number is unverified and not used as a gold fact."
+    },
+    {
+      "type": "metadata_only_date",
+      "document_ids": [
+        "articles-2026"
+      ],
+      "detail": "2026-05-11 is the manifest report date; the standalone transcription does not independently establish it. Do not treat it as a verified adoption/transmittal date."
+    },
+    {
+      "type": "missing_underlying_records",
+      "document_ids": [
+        "articles-2026",
+        "committee-report-261",
+        "sara-duterte-answer-2026",
+        "sc-press-briefer-2026-08-05",
+        "house-press-10322-2026-10-13"
+      ],
+      "detail": "Referenced annexes, full SC resolutions, COA decisions/motion, hearing records and final Senate judgment/voting records are not separately available sources. A pleading’s reference does not verify the underlying record."
+    },
+    {
+      "type": "summary_scope",
+      "document_ids": [
+        "sc-press-briefer-2026-08-05"
+      ],
+      "detail": "Briefer is an impeachment-only excerpt and simplified summary, not full Supreme Court resolutions."
+    }
+  ],
+  "questions": [
+    {
+      "id": "FOLIO-01",
+      "category": "factual_retrieval",
+      "run_stage": "before_upload",
+      "question": "According to Article I in the supplied Articles of Impeachment, what confidential-fund amounts are alleged for the OVP and DepEd?",
+      "expected_answer": "Article I alleges misuse, misappropriation, and irregular liquidation involving PHP500,000,000 for the Office of the Vice President and PHP112,500,000 for the Department of Education. These are allegations, not findings of guilt.",
+      "expected_status": "answered",
+      "source_document_ids": [
+        "articles-2026"
+      ],
+      "selected_document_ids": [
+        "articles-2026"
+      ],
+      "supporting_passages": [
+        {
+          "doc_id": "articles-2026",
+          "file": "corpus/initial/articles-of-impeachment.txt",
+          "page": null,
+          "source_page_reference": "---------- SOURCE PDF PAGE 2 / 23 ----------",
+          "line_start": 62,
+          "line_end": 71,
+          "quote": "ARTICLE |\n\nRESPONDENT VICE PRESIDENT SARA Z. DUTERTE COMMITTED\nCULPABLE VIOLATION OF THE CONSTITUTION, GRAFT AND\nCORRUPTION, AND BETRAYED PUBLIC TRUST THROUGH THE\nSYSTEMATIC MISUSE, MISAPPROPRIATION, AND IRREGULAR\nLIQUIDATION OF CONFIDENTIAL FUNDS AMOUNTING TO\nPHP500,000,000.00 RELEASED TO THE OFFICE OF THE VICE\nPRESIDENT AND  PHP112,500,000.00 RELEASED TO THE\nDEPARTMENT OF EDUCATION.",
+          "evidence_role": "support",
+          "verification": "exact_local_text; original_source_unverified",
+          "text_type": "ocr"
+        }
+      ],
+      "pass_criteria": [
+        "Pairs PHP500 million with OVP and PHP112.5 million with DepEd.",
+        "Cites Article I, source page 2.",
+        "Attributes the alleged misconduct to the Articles, not a court judgment."
+      ],
+      "evidence_flags": [
+        "OCR figures and wording unverified against original PDF."
+      ]
+    },
+    {
+      "id": "FOLIO-02",
+      "category": "factual_retrieval",
+      "run_stage": "before_upload",
+      "question": "According to the supplied committee report, what did the Committee decide about opening the sealed BIR box, and what was the vote?",
+      "expected_answer": "The Committee decided not to open the box and preserved it as part of the records. Six voted in favor of opening, 38 against, and zero abstained.",
+      "expected_status": "answered",
+      "source_document_ids": [
+        "committee-report-261"
+      ],
+      "selected_document_ids": [
+        "committee-report-261"
+      ],
+      "supporting_passages": [
+        {
+          "doc_id": "committee-report-261",
+          "file": "corpus/initial/commitee-report-261.txt",
+          "page": null,
+          "source_page_reference": "===== PDF PAGE 048 / 093 =====",
+          "line_start": 3110,
+          "line_end": 3112,
+          "quote": "With a vote of six (6) in the affirmative, thirty-eight (38) in the negative, and zero\n(0) in abstention, the Committee decided not to open the box and instead preserve the\nsame and make it form part of the records.",
+          "evidence_role": "support",
+          "verification": "exact_local_text; original_source_unverified",
+          "text_type": "ocr"
+        }
+      ],
+      "pass_criteria": [
+        "States the Committee did not open the box.",
+        "Gives 6 affirmative, 38 negative, and 0 abstentions without reversing the vote.",
+        "Cites source PDF page 48; does not infer box contents or subsequent Senate action."
+      ],
+      "evidence_flags": []
+    },
+    {
+      "id": "FOLIO-03",
+      "category": "factual_retrieval",
+      "run_stage": "before_upload",
+      "question": "What relief did Sara Duterte request in the Relief section of her May 25, 2026 Answer?",
+      "expected_answer": "She requested dismissal of the Articles for the reasons discussed in her Answer and for failing to meet constitutional requirements, as well as other equitable relief.",
+      "expected_status": "answered",
+      "source_document_ids": [
+        "sara-duterte-answer-2026"
+      ],
+      "selected_document_ids": [
+        "sara-duterte-answer-2026"
+      ],
+      "supporting_passages": [
+        {
+          "doc_id": "sara-duterte-answer-2026",
+          "file": "corpus/initial/sara-duterte-defense.txt",
+          "page": null,
+          "source_page_reference": "========== PAGE 48 OF 51 ==========",
+          "line_start": 1879,
+          "line_end": 1883,
+          "quote": "WHEREFORE, it is respectfully prayed that the Articles of Impeachment be\ndismissed for the reasons cited and discussed above, and for failing to meet the\nconstitutional requirements of an impeachment proceeding.\n\nOther equitable reliefs are likewise prayed for.",
+          "evidence_role": "support",
+          "verification": "exact_local_text; original_source_unverified",
+          "text_type": "ai_assisted_transcription"
+        }
+      ],
+      "pass_criteria": [
+        "Identifies dismissal and the stated constitutional-requirements basis.",
+        "Cites the Relief section, page marker 48.",
+        "Describes a defense request, not an order granting dismissal."
+      ],
+      "evidence_flags": []
+    },
+    {
+      "id": "FOLIO-04",
+      "category": "multi_document_reasoning",
+      "run_stage": "before_upload",
+      "question": "How do the Articles and May 25 Answer differ on whether the COA disallowance decision of April 10, 2026 was final?",
+      "expected_answer": "The Articles describe the PHP73,287,000 disallowance of OVP 2022 funds as upheld with finality by the April 10 decision. The Answer disputes finality, says legal remedies remain, and states a motion for reconsideration was timely filed. These are conflicting positions; the supplied filings do not independently resolve finality.",
+      "expected_status": "answered",
+      "source_document_ids": [
+        "articles-2026",
+        "sara-duterte-answer-2026"
+      ],
+      "selected_document_ids": [
+        "articles-2026",
+        "sara-duterte-answer-2026"
+      ],
+      "supporting_passages": [
+        {
+          "doc_id": "articles-2026",
+          "file": "corpus/initial/articles-of-impeachment.txt",
+          "page": null,
+          "source_page_reference": "---------- SOURCE PDF PAGE 4 / 23 ----------",
+          "line_start": 184,
+          "line_end": 186,
+          "quote": "massive expenditure resulted in a Notice of Disallowance for\nPhp73,287,000.00 of the OVP’s 2022 funds, a ruling upheld\nwith finality in a COA Decision dated April 10, 2026",
+          "evidence_role": "support",
+          "verification": "exact_local_text; original_source_unverified",
+          "text_type": "ocr"
+        },
+        {
+          "doc_id": "sara-duterte-answer-2026",
+          "file": "corpus/initial/sara-duterte-defense.txt",
+          "page": null,
+          "source_page_reference": "========== PAGE 29 OF 51 ==========",
+          "line_start": 1103,
+          "line_end": 1103,
+          "quote": "In addition, contrary to the misrepresentation in the Articles that the disallowance has been upheld with finality,120 the respondent puts on record that said COA Decision is not final and thus, cannot constitute as proof of any impeachable offense on her part.",
+          "evidence_role": "support",
+          "verification": "exact_local_text; original_source_unverified",
+          "text_type": "ai_assisted_transcription"
+        },
+        {
+          "doc_id": "sara-duterte-answer-2026",
+          "file": "corpus/initial/sara-duterte-defense.txt",
+          "page": null,
+          "source_page_reference": "========== PAGE 29 OF 51 ==========",
+          "line_start": 1107,
+          "line_end": 1107,
+          "quote": "In fact, the respondent and the other appellants therein have available legal remedies to question that decision and ultimately, before the Supreme Court. As of date, a Motion for Reconsideration121 was timely filed by the respondent and her co-appellants with the COA En Banc.",
+          "evidence_role": "support",
+          "verification": "exact_local_text; original_source_unverified",
+          "text_type": "ai_assisted_transcription"
+        }
+      ],
+      "pass_criteria": [
+        "Attributes finality to the Articles and non-finality to the Answer.",
+        "Mentions the claimed motion for reconsideration without saying it was granted.",
+        "Cites both Articles page 4 and Answer page 29.",
+        "Leaves the legal dispute unresolved; a later pleading is not a court ruling."
+      ],
+      "evidence_flags": [
+        "Underlying COA decision and reconsideration motion are referenced but not separately available."
+      ]
+    },
+    {
+      "id": "FOLIO-05",
+      "category": "multi_document_reasoning",
+      "run_stage": "before_upload",
+      "question": "How does the committee report describe the purpose of the April hearings, and why does the May 25 Answer object to those same hearings?",
+      "expected_answer": "The report describes the April 14, 22, and 29 hearings as determining probable cause to impeach. The Answer characterizes them as a trial involving subpoenas, testimony, and documentary evidence, and argues that only the Senate may conduct such a trial. The documents disagree about the nature and authority of the hearings.",
+      "expected_status": "answered",
+      "source_document_ids": [
+        "committee-report-261",
+        "sara-duterte-answer-2026"
+      ],
+      "selected_document_ids": [
+        "committee-report-261",
+        "sara-duterte-answer-2026"
+      ],
+      "supporting_passages": [
+        {
+          "doc_id": "committee-report-261",
+          "file": "corpus/initial/commitee-report-261.txt",
+          "page": null,
+          "source_page_reference": "===== PDF PAGE 003 / 093 =====",
+          "line_start": 140,
+          "line_end": 142,
+          "quote": "The Committee conducted three hearings, specifically on April 14, 22,\nand 29, 2026, to determine the existence of probable cause to impeach\nRespondent Vice President Duterte.",
+          "evidence_role": "support",
+          "verification": "exact_local_text; original_source_unverified",
+          "text_type": "ocr"
+        },
+        {
+          "doc_id": "sara-duterte-answer-2026",
+          "file": "corpus/initial/sara-duterte-defense.txt",
+          "page": null,
+          "source_page_reference": "========== PAGE 13 OF 51 ==========",
+          "line_start": 476,
+          "line_end": 476,
+          "quote": "The subsequent hearings held on April 14, 22, and 29, 2026 exposed the true nature of the committee proceedings. Those called to appear before it were dubbed as mere resource persons when, in substance, they were called to testify and produce purported documentary evidence pursuant to the compulsory process of subpoenas issued by the Committee on Justice. The proceedings therefore partook the nature of a trial, which only this Honorable Court is authorized to conduct under Section 3(6), Article XI of the Constitution.",
+          "evidence_role": "support",
+          "verification": "exact_local_text; original_source_unverified",
+          "text_type": "ai_assisted_transcription"
+        }
+      ],
+      "pass_criteria": [
+        "Explains the probable-cause purpose and the defense trial/usurpation objection.",
+        "Connects both accounts to the same three April hearings.",
+        "Cites committee page 3 and Answer page 13.",
+        "Treats unconstitutionality as the defense argument, not an established judicial holding."
+      ],
+      "evidence_flags": []
+    },
+    {
+      "id": "FOLIO-06",
+      "category": "temporal_reasoning",
+      "run_stage": "before_upload",
+      "question": "Trace petition G.R. No. E-05667 from its filing to the May 25 Answer and the August 5 briefer. Distinguish its document date from its filing date.",
+      "expected_answer": "The Answer says the petition was dated March 30, 2026 and filed April 1, 2026. As of the May 25 Answer, the respondent said the Supreme Court had yet to rule. The August 5 briefer reports dismissal of the consolidated petitions as moot after House approval and transmittal of the Articles to the Senate. Pending status and dismissal describe different times.",
+      "expected_status": "answered",
+      "source_document_ids": [
+        "sara-duterte-answer-2026",
+        "sc-press-briefer-2026-08-05"
+      ],
+      "selected_document_ids": [
+        "sara-duterte-answer-2026",
+        "sc-press-briefer-2026-08-05"
+      ],
+      "supporting_passages": [
+        {
+          "doc_id": "sara-duterte-answer-2026",
+          "file": "corpus/initial/sara-duterte-defense.txt",
+          "page": null,
+          "source_page_reference": "========== PAGE 6 OF 51 ==========",
+          "line_start": 196,
+          "line_end": 196,
+          "quote": "Thus, on April 1, 2026, the respondent filed with the Supreme Court a Petition for Certiorari and Prohibition [With Urgent Application for Temporary Restraining Order and/or Writ of Preliminary Injunction] dated March 30, 2026 entitled “Sara Z. Duterte v. House of Representatives, et al.” and docketed as G.R. No. E-05667.",
+          "evidence_role": "support",
+          "verification": "exact_local_text; original_source_unverified",
+          "text_type": "ai_assisted_transcription"
+        },
+        {
+          "doc_id": "sara-duterte-answer-2026",
+          "file": "corpus/initial/sara-duterte-defense.txt",
+          "page": null,
+          "source_page_reference": "========== PAGE 6 OF 51 ==========",
+          "line_start": 200,
+          "line_end": 200,
+          "quote": "Given that the Supreme Court has yet to rule on said Petition and this Honorable Court had ordered the respondent to submit her Answer to the Articles of Impeachment within a non-extendible period of ten days from her receipt of the Summons on May 20, 2026, the respondent is thus constrained to file this Answer.",
+          "evidence_role": "support",
+          "verification": "exact_local_text; original_source_unverified",
+          "text_type": "ai_assisted_transcription"
+        },
+        {
+          "doc_id": "sc-press-briefer-2026-08-05",
+          "file": "corpus/initial/sc-press-briefer.txt",
+          "page": null,
+          "source_page_reference": null,
+          "line_start": 16,
+          "line_end": 16,
+          "quote": "G.R. No. E-05667, Sara Z. Duterte, in her capacity as the Vice President of the Philippines v. House of Representatives et al.",
+          "evidence_role": "support",
+          "verification": "exact_local_text; original_source_unverified",
+          "text_type": "webpage_excerpt"
+        },
+        {
+          "doc_id": "sc-press-briefer-2026-08-05",
+          "file": "corpus/initial/sc-press-briefer.txt",
+          "page": null,
+          "source_page_reference": null,
+          "line_start": 18,
+          "line_end": 18,
+          "quote": "The SC dismissed the consolidated petitions questioning the proceedings before the House of Representatives and its Committee on Justice on the impeachment complaints against Vice President Sara Z. Duterte.",
+          "evidence_role": "support",
+          "verification": "exact_local_text; original_source_unverified",
+          "text_type": "webpage_excerpt"
+        },
+        {
+          "doc_id": "sc-press-briefer-2026-08-05",
+          "file": "corpus/initial/sc-press-briefer.txt",
+          "page": null,
+          "source_page_reference": null,
+          "line_start": 20,
+          "line_end": 20,
+          "quote": "The SC ruled that the issues raised in the petitions had become moot, or no longer required resolution, because the House had already approved and transmitted the Articles of Impeachment to the Senate.",
+          "evidence_role": "support",
+          "verification": "exact_local_text; original_source_unverified",
+          "text_type": "webpage_excerpt"
+        }
+      ],
+      "pass_criteria": [
+        "Orders March 30 document date, April 1 filing, May 25 pending account, and August 5 dismissal correctly.",
+        "Explains mootness after approval/transmittal, not a merits judgment or dismissal of the Senate case.",
+        "Cites Answer page 6 and the briefer.",
+        "Does not use October evidence."
+      ],
+      "evidence_flags": [
+        "May 25 date comes from the Answer header and manifest.",
+        "SC manifest ID differs from embedded header ID."
+      ]
+    },
+    {
+      "id": "FOLIO-07",
+      "category": "temporal_reasoning",
+      "run_stage": "before_upload",
+      "question": "By August 5, 2026, had the impeachment process remained in the House or moved to the Senate, and why did that timing matter to the Supreme Court petitions?",
+      "expected_answer": "The briefer says transmittal had ended the House role and initiated the impeachment case; the Senate had convened as an impeachment court and begun proceedings. The challenged House actions were complete, making the petitions moot. The briefer does not give an exact transmittal date.",
+      "expected_status": "answered",
+      "source_document_ids": [
+        "sc-press-briefer-2026-08-05"
+      ],
+      "selected_document_ids": [
+        "sc-press-briefer-2026-08-05"
+      ],
+      "supporting_passages": [
+        {
+          "doc_id": "sc-press-briefer-2026-08-05",
+          "file": "corpus/initial/sc-press-briefer.txt",
+          "page": null,
+          "source_page_reference": null,
+          "line_start": 24,
+          "line_end": 24,
+          "quote": "The SC explained that the House’s transmittal of the Articles of Impeachment marked the end of the House’s role in the impeachment process and the initiation of the impeachment case. As a result, the actions the petitioner sought to stop had already been completed.",
+          "evidence_role": "support",
+          "verification": "exact_local_text; original_source_unverified",
+          "text_type": "webpage_excerpt"
+        },
+        {
+          "doc_id": "sc-press-briefer-2026-08-05",
+          "file": "corpus/initial/sc-press-briefer.txt",
+          "page": null,
+          "source_page_reference": null,
+          "line_start": 26,
+          "line_end": 26,
+          "quote": "The SC further held that the impeachment process had already moved to the Senate, which had convened as an impeachment court and had begun proceedings.",
+          "evidence_role": "support",
+          "verification": "exact_local_text; original_source_unverified",
+          "text_type": "webpage_excerpt"
+        },
+        {
+          "doc_id": "sc-press-briefer-2026-08-05",
+          "file": "corpus/initial/sc-press-briefer.txt",
+          "page": null,
+          "source_page_reference": null,
+          "line_start": 20,
+          "line_end": 20,
+          "quote": "The SC ruled that the issues raised in the petitions had become moot, or no longer required resolution, because the House had already approved and transmitted the Articles of Impeachment to the Senate.",
+          "evidence_role": "support",
+          "verification": "exact_local_text; original_source_unverified",
+          "text_type": "webpage_excerpt"
+        },
+        {
+          "doc_id": "sc-press-briefer-2026-08-05",
+          "file": "corpus/initial/sc-press-briefer.txt",
+          "page": null,
+          "source_page_reference": null,
+          "line_start": 28,
+          "line_end": 28,
+          "quote": "Any ruling on the validity of the actions taken by the House and its Committee on Justice would no longer affect the controversy.",
+          "evidence_role": "support",
+          "verification": "exact_local_text; original_source_unverified",
+          "text_type": "webpage_excerpt"
+        }
+      ],
+      "pass_criteria": [
+        "Places completed House actions and begun Senate proceedings by August 5.",
+        "Connects completed actions to mootness.",
+        "Cites the briefer without inventing an exact transmittal or convening date.",
+        "Does not infer the Senate trial had finished or import October developments."
+      ],
+      "evidence_flags": []
+    },
+    {
+      "id": "FOLIO-08",
+      "category": "insufficient_evidence",
+      "run_stage": "after_upload",
+      "question": "What was the Senate impeachment court’s final verdict on Article II, and how many senators voted to convict or acquit?",
+      "expected_answer": "The corpus does not establish a final Senate verdict or a conviction/acquittal vote count. The October summary describes prosecution intentions and its assessment of evidence, not a court verdict. A final Senate judgment and voting record are needed.",
+      "expected_status": "insufficient_evidence",
+      "source_document_ids": [
+        "articles-2026",
+        "committee-report-261",
+        "sara-duterte-answer-2026",
+        "sc-press-briefer-2026-08-05",
+        "house-press-10322-2026-10-13"
+      ],
+      "selected_document_ids": [
+        "articles-2026",
+        "committee-report-261",
+        "sara-duterte-answer-2026",
+        "sc-press-briefer-2026-08-05",
+        "house-press-10322-2026-10-13"
+      ],
+      "supporting_passages": [
+        {
+          "doc_id": "house-press-10322-2026-10-13",
+          "file": "corpus/heldout/october-13-update.txt",
+          "page": null,
+          "source_page_reference": null,
+          "line_start": 30,
+          "line_end": 30,
+          "quote": "The House prosecution stated that, in its assessment, evidence relating to Article II was sufficient to support proceeding with that article on its own. Its position was that the remaining charge could justify the Vice President's removal from office. This is the prosecution's assessment, not an independent finding of guilt.",
+          "evidence_role": "context_only_not_proof_of_verdict",
+          "verification": "exact_local_text; original_source_unverified",
+          "text_type": "paraphrased_summary_not_verbatim"
+        },
+        {
+          "doc_id": "house-press-10322-2026-10-13",
+          "file": "corpus/heldout/october-13-update.txt",
+          "page": null,
+          "source_page_reference": null,
+          "line_start": 34,
+          "line_end": 34,
+          "quote": "Before this announcement, the impeachment case presented four articles. The announcement narrowed the prosecution's intended case to Article II. This is a procedural change in the charges the prosecution would pursue; it does not by itself prove or disprove the allegations in the withdrawn articles, nor establish guilt on the remaining article.",
+          "evidence_role": "context_only_not_proof_of_verdict",
+          "verification": "exact_local_text; original_source_unverified",
+          "text_type": "paraphrased_summary_not_verbatim"
+        }
+      ],
+      "pass_criteria": [
+        "Returns insufficient_evidence with claims: [] under the ask contract.",
+        "Explicitly says verdict and vote totals cannot be determined from these documents.",
+        "Does not invent conviction, acquittal, removal, or vote numbers.",
+        "Does not convert prosecution confidence into a Senate finding."
+      ],
+      "evidence_flags": [
+        "Final Senate judgment and roll-call record absent from corpus.",
+        "Context passages support abstention; they do not prove no verdict exists elsewhere.",
+        "October wording is a local paraphrase, not verified official wording."
+      ]
+    },
+    {
+      "id": "FOLIO-09",
+      "category": "before_after_update_comparison",
+      "run_stage": "before_and_after_upload",
+      "question": "Compare the original Articles with the October 13 update: which articles would the prosecution continue pursuing, and which would it cease pursuing?",
+      "expected_answer": "The original filing presents four articles: I on confidential funds; II on unexplained wealth, SALN disclosures, and business interests; III on bribery/procurement-related payments; IV on assassination allegations, grave threats, and inciting sedition. According to the October 13 local paraphrase, prosecutors would cease pursuing I, III, and IV and continue only II. The intended scope narrows from four articles to one without proving or disproving the allegations.",
+      "expected_status": "compared",
+      "source_document_ids": [
+        "articles-2026",
+        "house-press-10322-2026-10-13"
+      ],
+      "selected_document_ids": [
+        "articles-2026",
+        "house-press-10322-2026-10-13"
+      ],
+      "supporting_passages": [
+        {
+          "doc_id": "articles-2026",
+          "file": "corpus/initial/articles-of-impeachment.txt",
+          "page": null,
+          "source_page_reference": "---------- SOURCE PDF PAGE 2 / 23 ----------",
+          "line_start": 62,
+          "line_end": 71,
+          "quote": "ARTICLE |\n\nRESPONDENT VICE PRESIDENT SARA Z. DUTERTE COMMITTED\nCULPABLE VIOLATION OF THE CONSTITUTION, GRAFT AND\nCORRUPTION, AND BETRAYED PUBLIC TRUST THROUGH THE\nSYSTEMATIC MISUSE, MISAPPROPRIATION, AND IRREGULAR\nLIQUIDATION OF CONFIDENTIAL FUNDS AMOUNTING TO\nPHP500,000,000.00 RELEASED TO THE OFFICE OF THE VICE\nPRESIDENT AND  PHP112,500,000.00 RELEASED TO THE\nDEPARTMENT OF EDUCATION.",
+          "evidence_role": "support",
+          "verification": "exact_local_text; original_source_unverified",
+          "text_type": "ocr"
+        },
+        {
+          "doc_id": "articles-2026",
+          "file": "corpus/initial/articles-of-impeachment.txt",
+          "page": null,
+          "source_page_reference": "---------- SOURCE PDF PAGE 7 / 23 ----------",
+          "line_start": 369,
+          "line_end": 389,
+          "quote": "ARTICLE Il\n\nRESPONDENT VICE PRESIDENT SARA Z. DUTERTE COMMITTED\nCULPABLE VIOLATION OF THE CONSTITUTION AND BETRAYED\nPUBLIC TRUST WHEN SHE:\n\nA.\n\nAMASSED UNEXPLAINED WEALTH MANIFESTLY\nDISPROPORTIONATE TO HER LAWFUL INCOME AND\nEARNINGS DURING HER INCUMBENCY AS A PUBLIC OFFICIAL;\n\nFAILED TO FULLY AND TRUTHFULLY DISCLOSE ALL HER AND\nHER SPOUSE’S ASSETS, LIABILITIES, AND NET WORTH IN HER\nSTATEMENT OF ASSETS, LIABILITIES, AND NET WORTH\n(“SALN”), INCLUDING IN HER SALN FOR THE YEARS 2022,\n2023, AND 2024; AND\n\nFAILED TO DIVEST, AND INSTEAD, WILLFULLY CONTINUED,\nALL HER BUSINESS INTERESTS DURING HER TENURE AS VICE\nPRESIDENT FOR THE YEARS 2022, 2023, 2024, AND 2025.",
+          "evidence_role": "support",
+          "verification": "exact_local_text; original_source_unverified",
+          "text_type": "ocr"
+        },
+        {
+          "doc_id": "articles-2026",
+          "file": "corpus/initial/articles-of-impeachment.txt",
+          "page": null,
+          "source_page_reference": "---------- SOURCE PDF PAGE 16 / 23 ----------",
+          "line_start": 973,
+          "line_end": 980,
+          "quote": "ARTICLE Ill\n\nRESPONDENT VICE PRESIDENT SARA Z. DUTERTE COMMITTED\nBRIBERY, GRAFT AND CORRUPTION, CULPABLE VIOLATION OF THE\nCONSTITUTION, AND BETRAYED PUBLIC TRUST WHEN SHE GAVE\nMONETARY GIFTS OR PAYMENTS TO DEPED OFFICIALS TO INDUCE\nTHE VIOLATION AND CIRCUMVENTION OF PROCUREMENT AND\nOTHER RELATED LAWS.",
+          "evidence_role": "support",
+          "verification": "exact_local_text; original_source_unverified",
+          "text_type": "ocr"
+        },
+        {
+          "doc_id": "articles-2026",
+          "file": "corpus/initial/articles-of-impeachment.txt",
+          "page": null,
+          "source_page_reference": "---------- SOURCE PDF PAGE 18 / 23 ----------",
+          "line_start": 1072,
+          "line_end": 1079,
+          "quote": "ARTICLE IV\n\nRESPONDENT VICE PRESIDENT SARA Z. DUTERTE COMMITTED\nCULPABLE VIOLATION OF THE CONSTITUTION, HIGH CRIMES, AND\nBETRAYED PUBLIC TRUST BY CONTRACTING FOR THE\nASSASSINATION OF THE PRESIDENT, THE FIRST LADY, AND THE\nFORMER SPEAKER OF THE HOUSE, BY MAKING GRAVE THREATS,\nAND BY ACTIVELY INCITING SEDITION AGAINST THE REPUBLIC.",
+          "evidence_role": "support",
+          "verification": "exact_local_text; original_source_unverified",
+          "text_type": "ocr"
+        },
+        {
+          "doc_id": "house-press-10322-2026-10-13",
+          "file": "corpus/heldout/october-13-update.txt",
+          "page": null,
+          "source_page_reference": null,
+          "line_start": 16,
+          "line_end": 26,
+          "quote": "The House impeachment prosecution announced on October 13, 2026 that it would no longer pursue three of the four impeachment articles against Vice President Sara Z. Duterte. House lead prosecutor Representative Gerville \"Jinky Bitrics\" Luistro informed the Senate impeachment court of the decision.\n\nThe prosecution said it would cease pursuing these articles:\n\n- Article I — allegations concerning the misuse of confidential funds.\n- Article III — allegations concerning bribery.\n- Article IV — allegations concerning grave threats.\n\nThe prosecution said it would continue on one article:\n\n- Article II — allegations concerning unexplained wealth.",
+          "evidence_role": "support",
+          "verification": "exact_local_text; original_source_unverified",
+          "text_type": "paraphrased_summary_not_verbatim"
+        },
+        {
+          "doc_id": "house-press-10322-2026-10-13",
+          "file": "corpus/heldout/october-13-update.txt",
+          "page": null,
+          "source_page_reference": null,
+          "line_start": 34,
+          "line_end": 34,
+          "quote": "Before this announcement, the impeachment case presented four articles. The announcement narrowed the prosecution's intended case to Article II. This is a procedural change in the charges the prosecution would pursue; it does not by itself prove or disprove the allegations in the withdrawn articles, nor establish guilt on the remaining article.",
+          "evidence_role": "support",
+          "verification": "exact_local_text; original_source_unverified",
+          "text_type": "paraphrased_summary_not_verbatim"
+        }
+      ],
+      "pass_criteria": [
+        "Identifies I, III, IV as no longer pursued and II as remaining.",
+        "Supports the four-to-one comparison with both earlier and newer passages.",
+        "Uses updated for this change under the compare contract, not unsupported removed.",
+        "Labels October quotes as local-summary text, not verbatim official-release wording.",
+        "Does not claim acquittal, guilt, or a Senate order granting withdrawal."
+      ],
+      "evidence_flags": [
+        "Original October release and any Senate withdrawal order are unavailable locally."
+      ],
+      "primary_run_stage": "after_upload",
+      "operation": "compare",
+      "comparison_selection": {
+        "older_doc_id": "articles-2026",
+        "newer_doc_id": "house-press-10322-2026-10-13"
+      },
+      "before_upload_control": {
+        "run_stage": "before_upload",
+        "operation": "ask",
+        "question": "Which articles does the original filing present, what does Article II allege, and does this selection establish a later narrowing to Article II alone?",
+        "selected_document_ids": [
+          "articles-2026"
+        ],
+        "source_document_ids": [
+          "articles-2026"
+        ],
+        "expected_status": "answered",
+        "expected_answer": "The filing presents Articles I, II, III, and IV. Article II alleges unexplained wealth, SALN disclosure failures, and continued business interests. This selection does not establish a later narrowing to Article II alone.",
+        "supporting_passages": [
+          {
+            "doc_id": "articles-2026",
+            "file": "corpus/initial/articles-of-impeachment.txt",
+            "page": null,
+            "source_page_reference": "---------- SOURCE PDF PAGE 2 / 23 ----------",
+            "line_start": 62,
+            "line_end": 71,
+            "quote": "ARTICLE |\n\nRESPONDENT VICE PRESIDENT SARA Z. DUTERTE COMMITTED\nCULPABLE VIOLATION OF THE CONSTITUTION, GRAFT AND\nCORRUPTION, AND BETRAYED PUBLIC TRUST THROUGH THE\nSYSTEMATIC MISUSE, MISAPPROPRIATION, AND IRREGULAR\nLIQUIDATION OF CONFIDENTIAL FUNDS AMOUNTING TO\nPHP500,000,000.00 RELEASED TO THE OFFICE OF THE VICE\nPRESIDENT AND  PHP112,500,000.00 RELEASED TO THE\nDEPARTMENT OF EDUCATION.",
+            "evidence_role": "support",
+            "verification": "exact_local_text; original_source_unverified",
+            "text_type": "ocr"
+          },
+          {
+            "doc_id": "articles-2026",
+            "file": "corpus/initial/articles-of-impeachment.txt",
+            "page": null,
+            "source_page_reference": "---------- SOURCE PDF PAGE 7 / 23 ----------",
+            "line_start": 369,
+            "line_end": 389,
+            "quote": "ARTICLE Il\n\nRESPONDENT VICE PRESIDENT SARA Z. DUTERTE COMMITTED\nCULPABLE VIOLATION OF THE CONSTITUTION AND BETRAYED\nPUBLIC TRUST WHEN SHE:\n\nA.\n\nAMASSED UNEXPLAINED WEALTH MANIFESTLY\nDISPROPORTIONATE TO HER LAWFUL INCOME AND\nEARNINGS DURING HER INCUMBENCY AS A PUBLIC OFFICIAL;\n\nFAILED TO FULLY AND TRUTHFULLY DISCLOSE ALL HER AND\nHER SPOUSE’S ASSETS, LIABILITIES, AND NET WORTH IN HER\nSTATEMENT OF ASSETS, LIABILITIES, AND NET WORTH\n(“SALN”), INCLUDING IN HER SALN FOR THE YEARS 2022,\n2023, AND 2024; AND\n\nFAILED TO DIVEST, AND INSTEAD, WILLFULLY CONTINUED,\nALL HER BUSINESS INTERESTS DURING HER TENURE AS VICE\nPRESIDENT FOR THE YEARS 2022, 2023, 2024, AND 2025.",
+            "evidence_role": "support",
+            "verification": "exact_local_text; original_source_unverified",
+            "text_type": "ocr"
+          },
+          {
+            "doc_id": "articles-2026",
+            "file": "corpus/initial/articles-of-impeachment.txt",
+            "page": null,
+            "source_page_reference": "---------- SOURCE PDF PAGE 16 / 23 ----------",
+            "line_start": 973,
+            "line_end": 980,
+            "quote": "ARTICLE Ill\n\nRESPONDENT VICE PRESIDENT SARA Z. DUTERTE COMMITTED\nBRIBERY, GRAFT AND CORRUPTION, CULPABLE VIOLATION OF THE\nCONSTITUTION, AND BETRAYED PUBLIC TRUST WHEN SHE GAVE\nMONETARY GIFTS OR PAYMENTS TO DEPED OFFICIALS TO INDUCE\nTHE VIOLATION AND CIRCUMVENTION OF PROCUREMENT AND\nOTHER RELATED LAWS.",
+            "evidence_role": "support",
+            "verification": "exact_local_text; original_source_unverified",
+            "text_type": "ocr"
+          },
+          {
+            "doc_id": "articles-2026",
+            "file": "corpus/initial/articles-of-impeachment.txt",
+            "page": null,
+            "source_page_reference": "---------- SOURCE PDF PAGE 18 / 23 ----------",
+            "line_start": 1072,
+            "line_end": 1079,
+            "quote": "ARTICLE IV\n\nRESPONDENT VICE PRESIDENT SARA Z. DUTERTE COMMITTED\nCULPABLE VIOLATION OF THE CONSTITUTION, HIGH CRIMES, AND\nBETRAYED PUBLIC TRUST BY CONTRACTING FOR THE\nASSASSINATION OF THE PRESIDENT, THE FIRST LADY, AND THE\nFORMER SPEAKER OF THE HOUSE, BY MAKING GRAVE THREATS,\nAND BY ACTIVELY INCITING SEDITION AGAINST THE REPUBLIC.",
+            "evidence_role": "support",
+            "verification": "exact_local_text; original_source_unverified",
+            "text_type": "ocr"
+          }
+        ],
+        "pass_criteria": [
+          "Cites the original filing for the four articles and Article II allegations.",
+          "States that later narrowing is not established by the selected document; does not assert that no later change occurred.",
+          "Does not use the held-out announcement or prosecution sufficiency assessment.",
+          "Use ask before upload; do not request compare with an unavailable held-out ID."
+        ]
+      }
+    },
+    {
+      "id": "FOLIO-10",
+      "category": "before_after_update_comparison",
+      "run_stage": "before_and_after_upload",
+      "question": "How did Article II’s role change between the original Articles and the October 13 update, and what reason does the update give?",
+      "expected_answer": "Article II was originally one of four articles and alleged unexplained wealth, incomplete or untruthful SALN disclosures, and failure to divest business interests. The October local summary describes it as the sole article prosecutors intended to pursue because they assessed its evidence as sufficient on its own to support proceeding and potentially removal. That is a prosecution assessment, not a finding of guilt or a newly introduced charge.",
+      "expected_status": "compared",
+      "source_document_ids": [
+        "articles-2026",
+        "house-press-10322-2026-10-13"
+      ],
+      "selected_document_ids": [
+        "articles-2026",
+        "house-press-10322-2026-10-13"
+      ],
+      "supporting_passages": [
+        {
+          "doc_id": "articles-2026",
+          "file": "corpus/initial/articles-of-impeachment.txt",
+          "page": null,
+          "source_page_reference": "---------- SOURCE PDF PAGE 2 / 23 ----------",
+          "line_start": 62,
+          "line_end": 71,
+          "quote": "ARTICLE |\n\nRESPONDENT VICE PRESIDENT SARA Z. DUTERTE COMMITTED\nCULPABLE VIOLATION OF THE CONSTITUTION, GRAFT AND\nCORRUPTION, AND BETRAYED PUBLIC TRUST THROUGH THE\nSYSTEMATIC MISUSE, MISAPPROPRIATION, AND IRREGULAR\nLIQUIDATION OF CONFIDENTIAL FUNDS AMOUNTING TO\nPHP500,000,000.00 RELEASED TO THE OFFICE OF THE VICE\nPRESIDENT AND  PHP112,500,000.00 RELEASED TO THE\nDEPARTMENT OF EDUCATION.",
+          "evidence_role": "support",
+          "verification": "exact_local_text; original_source_unverified",
+          "text_type": "ocr"
+        },
+        {
+          "doc_id": "articles-2026",
+          "file": "corpus/initial/articles-of-impeachment.txt",
+          "page": null,
+          "source_page_reference": "---------- SOURCE PDF PAGE 7 / 23 ----------",
+          "line_start": 369,
+          "line_end": 389,
+          "quote": "ARTICLE Il\n\nRESPONDENT VICE PRESIDENT SARA Z. DUTERTE COMMITTED\nCULPABLE VIOLATION OF THE CONSTITUTION AND BETRAYED\nPUBLIC TRUST WHEN SHE:\n\nA.\n\nAMASSED UNEXPLAINED WEALTH MANIFESTLY\nDISPROPORTIONATE TO HER LAWFUL INCOME AND\nEARNINGS DURING HER INCUMBENCY AS A PUBLIC OFFICIAL;\n\nFAILED TO FULLY AND TRUTHFULLY DISCLOSE ALL HER AND\nHER SPOUSE’S ASSETS, LIABILITIES, AND NET WORTH IN HER\nSTATEMENT OF ASSETS, LIABILITIES, AND NET WORTH\n(“SALN”), INCLUDING IN HER SALN FOR THE YEARS 2022,\n2023, AND 2024; AND\n\nFAILED TO DIVEST, AND INSTEAD, WILLFULLY CONTINUED,\nALL HER BUSINESS INTERESTS DURING HER TENURE AS VICE\nPRESIDENT FOR THE YEARS 2022, 2023, 2024, AND 2025.",
+          "evidence_role": "support",
+          "verification": "exact_local_text; original_source_unverified",
+          "text_type": "ocr"
+        },
+        {
+          "doc_id": "articles-2026",
+          "file": "corpus/initial/articles-of-impeachment.txt",
+          "page": null,
+          "source_page_reference": "---------- SOURCE PDF PAGE 16 / 23 ----------",
+          "line_start": 973,
+          "line_end": 980,
+          "quote": "ARTICLE Ill\n\nRESPONDENT VICE PRESIDENT SARA Z. DUTERTE COMMITTED\nBRIBERY, GRAFT AND CORRUPTION, CULPABLE VIOLATION OF THE\nCONSTITUTION, AND BETRAYED PUBLIC TRUST WHEN SHE GAVE\nMONETARY GIFTS OR PAYMENTS TO DEPED OFFICIALS TO INDUCE\nTHE VIOLATION AND CIRCUMVENTION OF PROCUREMENT AND\nOTHER RELATED LAWS.",
+          "evidence_role": "support",
+          "verification": "exact_local_text; original_source_unverified",
+          "text_type": "ocr"
+        },
+        {
+          "doc_id": "articles-2026",
+          "file": "corpus/initial/articles-of-impeachment.txt",
+          "page": null,
+          "source_page_reference": "---------- SOURCE PDF PAGE 18 / 23 ----------",
+          "line_start": 1072,
+          "line_end": 1079,
+          "quote": "ARTICLE IV\n\nRESPONDENT VICE PRESIDENT SARA Z. DUTERTE COMMITTED\nCULPABLE VIOLATION OF THE CONSTITUTION, HIGH CRIMES, AND\nBETRAYED PUBLIC TRUST BY CONTRACTING FOR THE\nASSASSINATION OF THE PRESIDENT, THE FIRST LADY, AND THE\nFORMER SPEAKER OF THE HOUSE, BY MAKING GRAVE THREATS,\nAND BY ACTIVELY INCITING SEDITION AGAINST THE REPUBLIC.",
+          "evidence_role": "support",
+          "verification": "exact_local_text; original_source_unverified",
+          "text_type": "ocr"
+        },
+        {
+          "doc_id": "house-press-10322-2026-10-13",
+          "file": "corpus/heldout/october-13-update.txt",
+          "page": null,
+          "source_page_reference": null,
+          "line_start": 16,
+          "line_end": 26,
+          "quote": "The House impeachment prosecution announced on October 13, 2026 that it would no longer pursue three of the four impeachment articles against Vice President Sara Z. Duterte. House lead prosecutor Representative Gerville \"Jinky Bitrics\" Luistro informed the Senate impeachment court of the decision.\n\nThe prosecution said it would cease pursuing these articles:\n\n- Article I — allegations concerning the misuse of confidential funds.\n- Article III — allegations concerning bribery.\n- Article IV — allegations concerning grave threats.\n\nThe prosecution said it would continue on one article:\n\n- Article II — allegations concerning unexplained wealth.",
+          "evidence_role": "support",
+          "verification": "exact_local_text; original_source_unverified",
+          "text_type": "paraphrased_summary_not_verbatim"
+        },
+        {
+          "doc_id": "house-press-10322-2026-10-13",
+          "file": "corpus/heldout/october-13-update.txt",
+          "page": null,
+          "source_page_reference": null,
+          "line_start": 30,
+          "line_end": 30,
+          "quote": "The House prosecution stated that, in its assessment, evidence relating to Article II was sufficient to support proceeding with that article on its own. Its position was that the remaining charge could justify the Vice President's removal from office. This is the prosecution's assessment, not an independent finding of guilt.",
+          "evidence_role": "support",
+          "verification": "exact_local_text; original_source_unverified",
+          "text_type": "paraphrased_summary_not_verbatim"
+        }
+      ],
+      "pass_criteria": [
+        "Explains one-of-four to sole-pursued-article change; does not call Article II new.",
+        "States the prosecution’s assessment that Article II evidence sufficed on its own.",
+        "Cites the earlier four-article structure/Article II heading and October continuation/reasoning passages.",
+        "Does not infer that the Article II wording or its three original allegation areas were amended.",
+        "Attributes October wording to the paraphrase and does not assert guilt or completed removal."
+      ],
+      "evidence_flags": [
+        "Original release wording and underlying evidence for the sufficiency assessment remain unverified."
+      ],
+      "primary_run_stage": "after_upload",
+      "operation": "compare",
+      "comparison_selection": {
+        "older_doc_id": "articles-2026",
+        "newer_doc_id": "house-press-10322-2026-10-13"
+      },
+      "before_upload_control": {
+        "run_stage": "before_upload",
+        "operation": "ask",
+        "question": "Which articles does the original filing present, what does Article II allege, and does this selection establish a later narrowing to Article II alone?",
+        "selected_document_ids": [
+          "articles-2026"
+        ],
+        "source_document_ids": [
+          "articles-2026"
+        ],
+        "expected_status": "answered",
+        "expected_answer": "The filing presents Articles I, II, III, and IV. Article II alleges unexplained wealth, SALN disclosure failures, and continued business interests. This selection does not establish a later narrowing to Article II alone.",
+        "supporting_passages": [
+          {
+            "doc_id": "articles-2026",
+            "file": "corpus/initial/articles-of-impeachment.txt",
+            "page": null,
+            "source_page_reference": "---------- SOURCE PDF PAGE 2 / 23 ----------",
+            "line_start": 62,
+            "line_end": 71,
+            "quote": "ARTICLE |\n\nRESPONDENT VICE PRESIDENT SARA Z. DUTERTE COMMITTED\nCULPABLE VIOLATION OF THE CONSTITUTION, GRAFT AND\nCORRUPTION, AND BETRAYED PUBLIC TRUST THROUGH THE\nSYSTEMATIC MISUSE, MISAPPROPRIATION, AND IRREGULAR\nLIQUIDATION OF CONFIDENTIAL FUNDS AMOUNTING TO\nPHP500,000,000.00 RELEASED TO THE OFFICE OF THE VICE\nPRESIDENT AND  PHP112,500,000.00 RELEASED TO THE\nDEPARTMENT OF EDUCATION.",
+            "evidence_role": "support",
+            "verification": "exact_local_text; original_source_unverified",
+            "text_type": "ocr"
+          },
+          {
+            "doc_id": "articles-2026",
+            "file": "corpus/initial/articles-of-impeachment.txt",
+            "page": null,
+            "source_page_reference": "---------- SOURCE PDF PAGE 7 / 23 ----------",
+            "line_start": 369,
+            "line_end": 389,
+            "quote": "ARTICLE Il\n\nRESPONDENT VICE PRESIDENT SARA Z. DUTERTE COMMITTED\nCULPABLE VIOLATION OF THE CONSTITUTION AND BETRAYED\nPUBLIC TRUST WHEN SHE:\n\nA.\n\nAMASSED UNEXPLAINED WEALTH MANIFESTLY\nDISPROPORTIONATE TO HER LAWFUL INCOME AND\nEARNINGS DURING HER INCUMBENCY AS A PUBLIC OFFICIAL;\n\nFAILED TO FULLY AND TRUTHFULLY DISCLOSE ALL HER AND\nHER SPOUSE’S ASSETS, LIABILITIES, AND NET WORTH IN HER\nSTATEMENT OF ASSETS, LIABILITIES, AND NET WORTH\n(“SALN”), INCLUDING IN HER SALN FOR THE YEARS 2022,\n2023, AND 2024; AND\n\nFAILED TO DIVEST, AND INSTEAD, WILLFULLY CONTINUED,\nALL HER BUSINESS INTERESTS DURING HER TENURE AS VICE\nPRESIDENT FOR THE YEARS 2022, 2023, 2024, AND 2025.",
+            "evidence_role": "support",
+            "verification": "exact_local_text; original_source_unverified",
+            "text_type": "ocr"
+          },
+          {
+            "doc_id": "articles-2026",
+            "file": "corpus/initial/articles-of-impeachment.txt",
+            "page": null,
+            "source_page_reference": "---------- SOURCE PDF PAGE 16 / 23 ----------",
+            "line_start": 973,
+            "line_end": 980,
+            "quote": "ARTICLE Ill\n\nRESPONDENT VICE PRESIDENT SARA Z. DUTERTE COMMITTED\nBRIBERY, GRAFT AND CORRUPTION, CULPABLE VIOLATION OF THE\nCONSTITUTION, AND BETRAYED PUBLIC TRUST WHEN SHE GAVE\nMONETARY GIFTS OR PAYMENTS TO DEPED OFFICIALS TO INDUCE\nTHE VIOLATION AND CIRCUMVENTION OF PROCUREMENT AND\nOTHER RELATED LAWS.",
+            "evidence_role": "support",
+            "verification": "exact_local_text; original_source_unverified",
+            "text_type": "ocr"
+          },
+          {
+            "doc_id": "articles-2026",
+            "file": "corpus/initial/articles-of-impeachment.txt",
+            "page": null,
+            "source_page_reference": "---------- SOURCE PDF PAGE 18 / 23 ----------",
+            "line_start": 1072,
+            "line_end": 1079,
+            "quote": "ARTICLE IV\n\nRESPONDENT VICE PRESIDENT SARA Z. DUTERTE COMMITTED\nCULPABLE VIOLATION OF THE CONSTITUTION, HIGH CRIMES, AND\nBETRAYED PUBLIC TRUST BY CONTRACTING FOR THE\nASSASSINATION OF THE PRESIDENT, THE FIRST LADY, AND THE\nFORMER SPEAKER OF THE HOUSE, BY MAKING GRAVE THREATS,\nAND BY ACTIVELY INCITING SEDITION AGAINST THE REPUBLIC.",
+            "evidence_role": "support",
+            "verification": "exact_local_text; original_source_unverified",
+            "text_type": "ocr"
+          }
+        ],
+        "pass_criteria": [
+          "Cites the original filing for the four articles and Article II allegations.",
+          "States that later narrowing is not established by the selected document; does not assert that no later change occurred.",
+          "Does not use the held-out announcement or prosecution sufficiency assessment.",
+          "Use ask before upload; do not request compare with an unavailable held-out ID."
+        ]
+      }
+    }
+  ]
+}
