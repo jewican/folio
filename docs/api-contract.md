@@ -9,11 +9,13 @@ those schemas at `/openapi.json` and `/docs`. This document defines semantics th
 schemas alone cannot enforce. Coordinate changes with W2–W4 before editing.
 Unknown JSON request fields are rejected. Clients must use the shapes below.
 
-**Current scaffold:** health returns 200. Valid requests to all feature operations
-return 501 with `{"detail":{"code":"not_implemented","message":"Contract defined; feature not implemented."}}`.
-FastAPI performs request shape validation (422). Success shapes, storage,
-retrieval, citation integrity, and error cases below are commitments for feature
-implementation, not claims that those features work already.
+**Current implementation:** health, document upload/listing, and passage lookup
+work with local SQLite/files and basic TXT/PDF extraction behind a replaceable
+ingestion function. BM25 integration remains pending W2. Valid `/ask` and
+`/compare` requests return 501 with
+`{"detail":{"code":"not_implemented","message":"Contract defined; feature not implemented."}}`.
+Retrieval, generation, and citation integrity below remain commitments for feature
+implementation. FastAPI performs request shape validation (422).
 
 ## Operations
 
@@ -316,6 +318,7 @@ Non-validation errors use FastAPI's `detail` envelope:
 | 415 | `unsupported_file_type` | Unsupported extension, MIME, or actual content |
 | 422 | `invalid_document` | Empty, unreadable, encrypted, scanned, or invalid UTF-8 content |
 | 422 | `invalid_selection` | Dates reversed/equal or selection not ready |
+| 500 | `storage_failed` | Local filesystem or SQLite operation failed |
 | 502 | `generation_failed` | Provider failed or generated citations cannot be validated |
 | 504 | `generation_timeout` | Bounded provider call exceeded deadline |
 | 501 | `not_implemented` | Foundation stub only; removed per implemented operation |
