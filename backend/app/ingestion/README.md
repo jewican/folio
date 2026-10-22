@@ -19,6 +19,39 @@ rank-bm25 0.2.2 in its own directory.
 
 ## Callable API
 
+All callables run inside W1's Python process; no separate server is needed.
+For automatic upload visibility, create one storage-backed retriever:
+
+```python
+from app.retrieval import BM25Index, StoredPassageRetriever
+
+# W1 supplies this callable: return all committed ready Passage models in one
+# consistent storage read. Do not include staged or failed uploads.
+search = StoredPassageRetriever(load_saved_ready_passages)
+results = search(question, doc_ids=selected_ids, top_k=6)
+# Each query reads storage, rebuilding BM25 only if the passage snapshot changed.
+# Newly committed uploads are automatically searchable on the next query.
+search.rebuild()  # optional eager refresh on startup or after publication
+search.save(local_index_path)  # existing parent directory; atomic JSON snapshot
+offline_index = BM25Index.load(local_index_path)
+results = offline_index.retrieve(question, document_ids=selected_ids, k=6)
+```
+
+Snapshots save exact passage fields and a format version, not pickled scorers.
+Loading reconstructs BM25 without extracting files or assigning new IDs. The
+SQLite passage store remains authoritative. A loaded `BM25Index` is a static
+snapshot; use `StoredPassageRetriever` for automatic refresh. Loader failures
+propagate instead of returning stale evidence. Refreshes are serialized within
+each retriever, and queries use complete snapshots. For the small demo corpus,
+reading all passages on each query avoids revision counters and upload hooks.
+
+**W1 integration still required:** implement the committed-passage loader in
+storage and use `search` in answer/comparison routes. The current `Storage` does
+not yet expose a bulk passage loader, and those routes remain stubs. This W2
+change does not modify W1's storage/routes or publish extracted documents early.
+
+The original explicit-snapshot API remains available:
+
 Run with `backend/` on the Python import path:
 
 ```python
@@ -108,7 +141,14 @@ both requested callables. Optional real-document tests use the first transcript
 in `.local`; no private corpus data is committed. Their report date is synthetic,
 not a claim about the sample's actual publication date.
 
-Verified locally: 32 backend tests pass. The real transcript produces 30 passages
+Current retrieval update: 27 ingestion/retrieval tests pass. The full backend
+suite passes 78 tests when an in-memory pytest collection hook shortens parameter
+IDs longer than 200 characters. The unmodified full-suite invocation encounters
+setup/teardown errors for the existing oversized-upload parameter ID on Windows;
+no W1 test files were changed. Refresh, snapshot round-trip, storage failure and
+excluded-document regressions are covered in `backend/tests/test_retrieval.py`.
+
+Earlier ingestion verification: the real transcript produces 30 passages
 (median 365 words, maximum 491; 24 in the 300–500 range). Short preamble/page
 fragments account for the remaining six. The query `confidential funds liquidation`
 returns six passages from the explicitly selected real document. No PDF source

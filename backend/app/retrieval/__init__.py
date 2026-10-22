@@ -1,8 +1,13 @@
 """Selection-scoped rank-bm25 retrieval over stored shared Passage objects."""
 
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from functools import lru_cache
+import json
+import os
+from pathlib import Path
 import re
+from tempfile import NamedTemporaryFile
+from threading import RLock
 
 from rank_bm25 import BM25Plus
 
@@ -26,6 +31,31 @@ class BM25Index:
             stored = passage.model_copy(deep=True)
             self._rows.append((stored, _tokens(stored.text)))
         self._selection = lru_cache(maxsize=32)(self._build_selection)
+
+    def save(self, path: str | Path) -> None:
+        """Atomically save a portable snapshot; BM25 is rebuilt from exact passages."""
+        path = Path(path)
+        payload = {"version": 1, "passages": [
+            passage.model_dump(mode="json") for passage, _ in self._rows
+        ]}
+        temporary = None
+        try:
+            with NamedTemporaryFile(mode="w", encoding="utf-8", dir=path.parent,
+                                    delete=False) as output:
+                temporary = Path(output.name)
+                json.dump(payload, output, ensure_ascii=False)
+            os.replace(temporary, path)
+        finally:
+            if temporary is not None:
+                temporary.unlink(missing_ok=True)
+
+    @classmethod
+    def load(cls, path: str | Path) -> "BM25Index":
+        """Load stored IDs/text/metadata without re-extracting original files."""
+        payload = json.loads(Path(path).read_text(encoding="utf-8"))
+        if payload["version"] != 1:
+            raise ValueError("Unsupported index snapshot version")
+        return cls(Passage.model_validate(row) for row in payload["passages"])
 
     def _build_selection(self, document_ids: tuple[str, ...]):
         selected = set(document_ids)
@@ -56,6 +86,41 @@ class BM25Index:
                   if set(terms).intersection(tokens)]
         ranked.sort(key=lambda item: (-item[0], item[1].passage_id))
         return [passage.model_copy(deep=True) for _, passage in ranked[:k]]
+
+
+class StoredPassageRetriever:
+    """Callable W1 handoff over a loader of all committed ready passages.
+
+    Refresh before every query so successful uploads need no index notification.
+    W1 owns the loader and its transaction; no database or server is created here.
+    Loading failures propagate instead of silently serving an outdated snapshot.
+    """
+
+    def __init__(self, load_passages: Callable[[], Iterable[Passage]]):
+        self._load_passages = load_passages
+        self._index = BM25Index([])
+        self._saved_rows: list[Passage] = []
+        self._lock = RLock()
+
+    def rebuild(self) -> BM25Index:
+        """Refresh from authoritative storage, preserving every passage field."""
+        with self._lock:
+            rows = sorted((p.model_copy(deep=True) for p in self._load_passages()),
+                          key=lambda p: p.passage_id)
+            if rows != self._saved_rows:
+                replacement = BM25Index(rows)
+                self._index = replacement
+                self._saved_rows = rows
+            return self._index
+
+    def save(self, path: str | Path) -> None:
+        self.rebuild().save(path)
+
+    def retrieve(self, question: str, doc_ids: Sequence[str], top_k: int = 6,
+                 mode: str = "bm25") -> list[Passage]:
+        return self.rebuild().retrieve(question, doc_ids, top_k, mode)
+
+    __call__ = retrieve
 
 
 _index = BM25Index([])

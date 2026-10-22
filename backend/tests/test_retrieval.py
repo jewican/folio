@@ -1,12 +1,54 @@
+from datetime import date
+
 import pytest
 
 from app.contracts import Passage
-from app.retrieval import BM25Index, rebuild_index, retrieve
+from app.retrieval import BM25Index, StoredPassageRetriever, rebuild_index, retrieve
 
 
 def passage(id, doc, text):
     return Passage(passage_id=id, doc_id=doc, text=text, title="Report",
                    report_date="2026-10-20", source_url=None, page=None)
+
+
+def test_uploaded_documents_refresh_but_excluded_documents_never_appear(tmp_path):
+    stored = [passage("old-1", "old", "Shelters opened today.")]
+    search = StoredPassageRetriever(lambda: iter(stored))
+    assert search("shelters", doc_ids=["old"]) == stored
+    # Simulate W1 committing an upload after the retriever was constructed.
+    uploaded = passage("new-1", "new", "Shelters shelters shelters expanded.")
+    uploaded.title = "Updated report"
+    uploaded.report_date = date(2026, 10, 21)
+    uploaded.page = 2
+    stored.append(uploaded)
+    assert search("shelters", ["new"], top_k=1) == [uploaded]
+    snapshot = tmp_path / "bm25.json"
+    search.save(snapshot)
+    restarted = BM25Index.load(snapshot)
+    for index in (search, restarted):
+        assert index.retrieve("shelters", ["old"]) == stored[:1]
+        assert index.retrieve("expanded", ["old"]) == []
+        assert index.retrieve("shelters", ["new"]) == [uploaded]
+    assert search("shelters", ["missing"]) == []
+    stored.clear()
+    assert search("shelters", ["old"]) == []
+
+
+def test_storage_loading_failure_is_not_hidden():
+    def broken_loader():
+        raise OSError("Storage unavailable")
+    with pytest.raises(OSError, match="Storage unavailable"):
+        StoredPassageRetriever(broken_loader)("shelters", ["old"])
+
+
+def test_failed_refresh_keeps_valid_snapshot():
+    stored = [passage("one", "old", "Shelters")]
+    search = StoredPassageRetriever(lambda: stored)
+    previous = search.rebuild()
+    stored.append(passage("one", "new", "Shelters expanded"))
+    with pytest.raises(ValueError, match="Duplicate"):
+        search.rebuild()
+    assert previous.retrieve("shelters", ["old"]) == stored[:1]
 
 
 def test_ranking_selection_and_rebuild():
