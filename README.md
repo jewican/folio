@@ -8,8 +8,9 @@ document listing, and passage lookup work with local SQLite and original files.
 W2's TXT/PDF extraction and selection-scoped BM25 power `/ask`, which uses the
 configured Gemini Flash model and validates passage IDs and exact citation quotes.
 Unsupported questions return an explicit insufficient-evidence response.
-`/compare` remains a typed 501 stub. The frontend always uses FastAPI for document
-listing/upload, questions, and passage lookup. Citation chips open stored evidence
+`/compare` validates report dates and compares independently retrieved evidence
+from both selected reports. The frontend uses FastAPI for document listing/upload,
+questions, comparisons, and passage lookup. Citation chips open stored evidence
 with the source file, date, page, exact highlighted quote, and publisher link.
 Sample mode and fictional response data have been removed.
 
@@ -74,7 +75,8 @@ npm run test:live --workspace @folio/web
 
 The browser checks start the production Next.js server on port 3000 and the real
 FastAPI app on port 8000 with temporary SQLite/files. Stop existing servers on
-those ports before running. They use the root `.venv` backend environment and
+those ports before running. They use the root `.venv` backend environment on Unix,
+`eval/.venv` on Windows, or the executable set in `FOLIO_TEST_PYTHON`, and
 `backend/.env` provider configuration; the frontend build must target
 `http://localhost:8000` (the default API URL). Public API URL settings are bundled
 at build time, so rebuild after changing them. To use an installed Chrome instead
@@ -130,8 +132,13 @@ The command prints and records the UTC test time, configured model ID, returned
 failure. The default `gemini-3.8-flash` is now confirmed by the successful
 uncached full API and browser checks below. Rerun verification when changing
 keys or model configuration.
-`GEMINI_TIMEOUT_SECONDS` defaults to 30 (maximum 120); `GEMINI_MAX_OUTPUT_TOKENS`
-defaults to 4096 (maximum 8192). Calls have network timeouts and no automatic retries.
+`GEMINI_TIMEOUT_SECONDS` defaults to 60 (maximum 120); `GEMINI_MAX_OUTPUT_TOKENS`
+defaults to 8192 (maximum 8192). Calls have network timeouts. Provider failures are
+not retried; invalid structured output or evidence gets at most one repair call
+using the same context and remaining timeout budget. Explicit lower output limits still take precedence.
+Gemini 3 models use the supported `low` thinking level for bounded evidence
+extraction and comparison, reducing time spent before the structured answer.
+See Google's [thinking configuration](https://ai.google.dev/gemini-api/docs/generate-content/thinking).
 
 Failed smoke records include a backend-only `error.reason` and, when Google
 returns an HTTP error, `error.provider_http_status`. `network_error` means no
@@ -263,8 +270,8 @@ original BM25 ranking. Generation and citation validation are unchanged.
 For v1 compatibility, response `meta.retrieval_mode` retains its existing literal
 `"bm25"`; it cannot distinguish the configured backend modes. Backend INFO logs
 report `requested`, `actual`, `fallback`, and retrieval `elapsed_ms` separately.
-`meta.elapsed_ms` continues to measure the entire answer request. `/compare`
-retains its current behavior. A full-report fallback is outside this change.
+`meta.elapsed_ms` measures the entire answer or comparison request. Both endpoints
+use the configured retrieval mode. A full-report fallback is outside this change.
 
 Retrieval latency measured on 2026-10-22 with the live Gemini Embedding 2 API:
 six synthetic passages of approximately 400 words each, with three passages in

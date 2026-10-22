@@ -5,7 +5,17 @@ const nextConfig: NextConfig = {
   experimental: { useTypeScriptCli: false },
   cacheComponents: true,
   partialPrefetching: true,
-  // Tailwind CSS v4 runs as a Turbopack loader, so no PostCSS config is needed.
+  // Use the same Tailwind loader for the Webpack build fallback. This avoids
+  // Turbopack's CSS worker port requirement in restricted environments.
+  webpack(config) {
+    config.module.rules.push({
+      test: /globals\.css$/,
+      enforce: "pre",
+      use: ["@tailwindcss/turbopack"],
+    });
+    return config;
+  },
+  // Tailwind CSS v4 runs as a loader, so no PostCSS config is needed.
   turbopack: {
     rules: {
       "*.css": {

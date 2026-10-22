@@ -11,6 +11,19 @@ def passage(id, doc, text):
                    report_date="2026-10-20", source_url=None, page=None)
 
 
+def test_overview_covers_headings_without_altering_ocr_or_leaking_newer_text():
+    headings = [passage(f'h{i}', 'old', f'ARTICLE {label}\n\nAllegation number {i}.')
+                for i, label in enumerate(['|', 'Il', 'Ill', 'IV'])]
+    noise = [passage(f'n{i}', 'old', 'Original articles prosecution pursuing update. ' * 10)
+             for i in range(8)]
+    newer = passage('heldout', 'new', 'ARTICLE V\n\nLater change.')
+    index = BM25Index([*headings, *noise, newer])
+    results = index.retrieve('Which articles did the original filing present?', ['old'])
+    assert {p.passage_id for p in results[:4]} == {p.passage_id for p in headings}
+    assert all(p.doc_id == 'old' for p in results)
+    assert next(p for p in results if p.passage_id == 'h1').text == headings[1].text
+
+
 def test_uploaded_documents_refresh_but_excluded_documents_never_appear(tmp_path):
     stored = [passage("old-1", "old", "Shelters opened today.")]
     search = StoredPassageRetriever(lambda: iter(stored))

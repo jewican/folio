@@ -26,8 +26,34 @@ also give
 
 
 def _tokens(text: str) -> list[str]:
+    # Normalize only search terms; citation text and passage IDs stay immutable.
+    text = _normalize_headings(text)
     return [word for word in re.findall(r"\w+", text.casefold())
             if word not in _STOP_WORDS]
+
+
+def _normalize_headings(text: str) -> str:
+    return re.sub(r'\b(ARTICLE|Article)\s+(Il|Ill|\|)(?=\s|[.,])',
+                  lambda m: m[1] + ' ' + {'Il': 'II', 'Ill': 'III', '|': 'I'}[m[2]], text)
+
+
+def _overview_heading(question: str, text: str) -> bool:
+    """Reserve coverage for standalone headings when asked about document scope."""
+    kinds = re.findall(r'\b(articles?|sections?|chapters?)\b', question, re.I)
+    if _default_comparison(question):
+        kind = r'(?:article|section|chapter)'
+    elif not kinds or not re.search(r'\b(which|original|scope|role|pursu\w*|present\w*|narrow\w*)\b', question, re.I):
+        return False
+    else:
+        kind = kinds[0].lower().rstrip('s')
+    return bool(re.search(r'^\s*' + kind + r'\s+[IVXLCDM\d]+\s*$',
+                          _normalize_headings(text), re.I | re.M))
+
+
+def _default_comparison(question: str) -> bool:
+    # The contract's default comparison has no topic keywords. Include outline
+    # evidence and short reports even when those generic words do not occur.
+    return question.strip().rstrip('?').casefold() == 'what changed between these reports'
 
 
 class BM25Index:
@@ -95,8 +121,10 @@ class BM25Index:
             return []
         scores = scorer.get_scores(terms)
         ranked = [(float(score), passage) for score, (passage, tokens) in zip(scores, rows)
-                  if set(terms).intersection(tokens)]
-        ranked.sort(key=lambda item: (-item[0], item[1].passage_id))
+                  if set(terms).intersection(tokens) or _overview_heading(question, passage.text)
+                  or _default_comparison(question)]
+        ranked.sort(key=lambda item: (not _overview_heading(question, item[1].text),
+                                      -item[0], item[1].passage_id))
         return [passage.model_copy(deep=True) for _, passage in ranked[:k]]
 
 

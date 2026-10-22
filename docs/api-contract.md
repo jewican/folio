@@ -16,11 +16,16 @@ Gemini Flash client. Upload builds a replacement index
 before committing; retrieval rebuilds from saved passages after restart. Answers
 validate citation IDs and exact quotes against supplied passages and use stored
 metadata. Unsupported questions return `insufficient_evidence`; invalid model
-output returns 502. Retrieved rows are checked against canonical storage and
+output gets one bounded repair attempt, then returns 502 if still invalid. Retrieved rows are checked against canonical storage and
 selected document membership before being sent to the provider. Generation uses
 JSON output mode. Billing/quota, credential/access and rate-limit rejections
 return safe, actionable 502 messages; timeouts return 504. There is no mock or
-saved-answer fallback. Valid `/compare` requests still return 501. FastAPI performs
+saved-answer fallback. `/compare` validates document dates, retrieves both sides,
+and validates before/after citations against the corresponding stored version.
+Model references use short request-local aliases; responses always carry canonical
+passage IDs and exact stored quotes. Whitespace-only copying differences can be
+restored from a unique stored substring; changed words/numbers are rejected.
+Insufficient-evidence answers explain the specific missing facts. FastAPI performs
 request shape validation (422).
 
 ## Operations

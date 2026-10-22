@@ -44,10 +44,73 @@ def test_health_and_openapi_contract(client):
 @pytest.mark.parametrize('method,path,kwargs', [
     ('post', '/compare', {'json': {'older_doc_id': 'doc_older', 'newer_doc_id': 'doc_newer'}}),
 ])
-def test_features_are_explicit_stubs(client, method, path, kwargs):
+def test_compare_rejects_unknown_documents(client, method, path, kwargs):
     response = client.request(method, path, **kwargs)
-    assert response.status_code == 501
-    assert response.json()['detail']['code'] == 'not_implemented'
+    assert response.status_code == 404
+    assert response.json()['detail']['code'] == 'document_not_found'
+
+
+def test_comparison_date_order_and_missing_side(client):
+    older = upload(client, b'Ten shelters opened.', report_date='2026-10-20').json()['doc_id']
+    newer = upload(client, b'Rain fell.', report_date='2026-10-21').json()['doc_id']
+    assert client.post('/compare', json={'older_doc_id': newer, 'newer_doc_id': older}).status_code == 422
+    response = client.post('/compare', json={'older_doc_id': older, 'newer_doc_id': newer, 'question': 'shelters'})
+    assert response.status_code == 200
+    assert response.json()['status'] == 'insufficient_evidence'
+    assert response.json()['changes'] == []
+
+
+def test_exact_quotes_restore_whitespace_but_reject_changed_facts():
+    from app.generation.answer import Evidence, resolve_citations
+    p = Passage(passage_id='canonical', doc_id='old', title='Source', report_date='2026-01-01',
+                source_url=None, page=None, text='Six voted yes,\r\n38 voted no.')
+    result = resolve_citations([Evidence(passage_id='p1', quote='Six voted yes, 38 voted no.')], {'p1': p})
+    assert result[0].passage_id == 'canonical'
+    assert result[0].quote == p.text
+    with pytest.raises(ValueError):
+        resolve_citations([Evidence(passage_id='p1', quote='Six voted yes, 30 voted no.')], {'p1': p})
+    with pytest.raises(ValueError):
+        resolve_citations([Evidence(passage_id='p1', quote=p.text)], {'p1': p}, {'new'})
+
+
+@pytest.mark.parametrize('question', ['shelters', 'What changed between these reports?'])
+def test_compare_generates_canonical_evidence_on_both_sides(client, model_env, monkeypatch, question):
+    older = upload(client, b'Ten shelters opened.', report_date='2026-10-20').json()['doc_id']
+    newer = upload(client, b'Twelve shelters opened.', report_date='2026-10-21').json()['doc_id']
+
+    def respond(request):
+        prompt = json.loads(request.content)['contents'][0]['parts'][0]['text']
+        context = json.loads(prompt.split('INPUT_JSON:\n', 1)[1])
+        sides = {p['doc_id']: p for p in context['passages']}
+        result = {'status': 'compared', 'changes': [{
+            'kind': 'updated', 'summary': 'Reported shelters increased from ten to twelve.',
+            'before': 'Ten shelters opened.', 'after': 'Twelve shelters opened.',
+            'older_citations': [{'passage_id': sides[older]['passage_id'], 'quote': 'Ten shelters opened.'}],
+            'newer_citations': [{'passage_id': sides[newer]['passage_id'], 'quote': 'Twelve shelters opened.'}],
+        }]}
+        return httpx.Response(200, json={'modelVersion': 'test', 'candidates': [{
+            'finishReason': 'STOP', 'content': {'parts': [{'text': json.dumps(result)}]}}]})
+
+    mock_model_transport(model_env, monkeypatch, respond)
+    response = client.post('/compare', json={'older_doc_id': older, 'newer_doc_id': newer, 'question': question})
+    assert response.status_code == 200, response.text
+    result = CompareResponse.model_validate(response.json())
+    for side, expected in [('older_citations', older), ('newer_citations', newer)]:
+        citation = getattr(result.changes[0], side)[0]
+        assert citation.doc_id == expected
+        assert citation.quote in client.get('/passages/' + citation.passage_id).json()['text']
+
+
+def test_w4_overview_and_comparison_retrieve_all_gold_sections(client, w4_corpus):
+    uploaded, evaluation, storage = w4_corpus
+    for question in evaluation['questions'][8:]:
+        for case in (question['before_upload_control'], question):
+            selected = [uploaded[key]['doc_id'] for key in case['selected_document_ids']]
+            passages = storage.retrieve(case['question'], selected)
+            assert len(passages) <= 6
+            for evidence in case['supporting_passages']:
+                assert any(p.doc_id == uploaded[evidence['doc_id']]['doc_id']
+                           and evidence['quote'] in p.text[:4000] for p in passages)
 
 
 def upload(client, content=b'Example report.', filename='sample.txt',
@@ -112,7 +175,7 @@ def test_list_ordering_and_unknown_passage(client):
     (b'%PDF-1.7', 'a.txt', 'text/plain', 415, 'unsupported_file_type'),
     (b'PK\x03\x04zip', 'a.txt', 'text/plain', 415, 'unsupported_file_type'),
     (b'x' * (10485760 + 1), 'a.txt', 'text/plain', 413, 'upload_too_large'),
-])
+], ids=lambda value: f'bytes-{len(value)}' if isinstance(value, bytes) else None)
 def test_invalid_uploads_publish_nothing(client, tmp_path, content, filename, mime, status, code):
     response = upload(client, content, filename, mime)
     assert response.status_code == status
@@ -241,7 +304,7 @@ def test_selection_validation():
 
 
 def test_documented_success_examples_match_models():
-    contract = (Path(__file__).resolve().parents[2] / 'docs/api-contract.md').read_text()
+    contract = (Path(__file__).resolve().parents[2] / 'docs/api-contract.md').read_text(encoding='utf-8')
     examples = [json.loads(block) for block in re.findall(r'```json\n(.*?)\n```', contract, re.S)]
     for model, key in [(Health, 'status'), (DocumentList, 'documents'), (Passage, 'text'),
                        (AskResponse, 'answer'), (CompareResponse, 'changes')]:
@@ -313,7 +376,8 @@ def test_model_request_and_result(model_env, monkeypatch):
         assert 'test-secret-fallback' not in str(request.url)
         body = json.loads(request.content)
         assert body['contents'][0]['parts'] == [{'text': 'Hello'}]
-        assert body['generationConfig']['maxOutputTokens'] == 4096
+        assert body['generationConfig']['maxOutputTokens'] == 8192
+        assert body['generationConfig']['thinkingConfig'] == {'thinkingLevel': 'low'}
         return httpx.Response(200, json={
             'modelVersion': 'gemini-3.8-flash',
             'candidates': [{'finishReason': 'STOP', 'content': {'parts': [
@@ -571,7 +635,7 @@ def w4_corpus(client):
     for document in sorted(manifest['documents'], key=lambda row: row['heldout']):
         path = root / 'corpus' / document['file']
         response = client.post('/documents', files={
-            'file': (path.name, path.read_bytes(), document['media_type']),
+            'file': (path.name, path.read_text(encoding='utf-8').encode('utf-8'), document['media_type']),
         }, data={key: document[key] for key in ('title', 'report_date', 'source_url')})
         assert response.status_code == 201, response.text
         uploaded[document['doc_id']] = response.json()
@@ -758,11 +822,23 @@ def test_hybrid_ask_preserves_wire_contract_citations_and_comparison(
             return httpx.Response(200, json={'embeddings': [
                 {'values': [1.0] + [0.0] * 767} for _ in data['requests']]})
         context = json.loads(data['contents'][0]['parts'][0]['text'].split('INPUT_JSON:\n', 1)[1])
-        assert {p['doc_id'] for p in context['passages']} == {older['doc_id']}
-        evidence = context['passages'][0]
-        result = {'status': 'answered', 'claims': [{
-            'text': 'Three people killed.', 'citations': [{
-                'passage_id': evidence['passage_id'], 'quote': 'Three people killed.'}]}]}
+        if 'older_doc_id' in context:
+            sides = {p['doc_id']: p for p in context['passages']}
+            assert set(sides) == {older['doc_id'], newer['doc_id']}
+            result = {'status': 'compared', 'changes': [{
+                'kind': 'updated', 'summary': 'The reported count increased from three to six.',
+                'before': 'Three people killed.', 'after': 'Six people killed.',
+                'older_citations': [{'passage_id': sides[older['doc_id']]['passage_id'],
+                                     'quote': 'Three people killed.'}],
+                'newer_citations': [{'passage_id': sides[newer['doc_id']]['passage_id'],
+                                     'quote': 'Six people killed.'}],
+            }]}
+        else:
+            assert {p['doc_id'] for p in context['passages']} == {older['doc_id']}
+            evidence = context['passages'][0]
+            result = {'status': 'answered', 'claims': [{
+                'text': 'Three people killed.', 'citations': [{
+                    'passage_id': evidence['passage_id'], 'quote': 'Three people killed.'}]}]}
         return httpx.Response(200, json={'modelVersion': 'test', 'candidates': [{
             'finishReason': 'STOP', 'content': {'parts': [{'text': json.dumps(result)}]}}]})
 
@@ -781,5 +857,15 @@ def test_hybrid_ask_preserves_wire_contract_citations_and_comparison(
     assert citation.quote in evidence['text']
     assert citation.doc_id == older['doc_id']
     assert sum(path.endswith(':generateContent') for path in calls) == 1
-    assert client.post('/compare', json={
-        'older_doc_id': older['doc_id'], 'newer_doc_id': newer['doc_id']}).status_code == 501
+    compared = client.post('/compare', json={
+        'older_doc_id': older['doc_id'], 'newer_doc_id': newer['doc_id'], 'question': question})
+    assert compared.status_code == 200, compared.text
+    comparison = CompareResponse.model_validate(compared.json())
+    assert comparison.status == 'compared'
+    change = comparison.changes[0]
+    for citations, expected in [(change.older_citations, older['doc_id']),
+                                (change.newer_citations, newer['doc_id'])]:
+        for citation in citations:
+            assert citation.doc_id == expected
+            assert citation.quote in client.get('/passages/' + citation.passage_id).json()['text']
+    assert sum(path.endswith(':generateContent') for path in calls) == 2

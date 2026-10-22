@@ -89,8 +89,9 @@ invalid quotes and uncited model output.
 
 Generation is mocked in these checks. They validate evidence retrieval and API
 citation integrity, not model answer quality or legal/source authenticity. The
-comparison endpoint is still unimplemented; the two comparison cases remain for
-that workstream. The insufficient-evidence API path is covered separately; keyword
+comparison endpoint now uses normal generation and two-sided citation validation.
+Structural questions reserve retrieval coverage for standalone article, section
+or chapter headings, preserving the original text. The insufficient-evidence API path is covered separately; keyword
 matches alone cannot determine whether the evidence answers the question.
 
 Changed chunk boundaries apply to new ingestion only. Rebuild indexes from saved

@@ -64,8 +64,8 @@ class ModelResult:
 class GeminiClient:
     api_key: SecretStr
     model_id: str
-    timeout_seconds: float = 30
-    max_output_tokens: int = 4096
+    timeout_seconds: float = 60
+    max_output_tokens: int = 8192
 
     @classmethod
     def from_env(cls) -> "GeminiClient":
@@ -74,8 +74,8 @@ class GeminiClient:
         key = (os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or "").strip()
         model = (os.getenv("GEMINI_MODEL") or "gemini-3.8-flash").strip()
         try:
-            timeout = float(os.getenv("GEMINI_TIMEOUT_SECONDS") or "30")
-            tokens = int(os.getenv("GEMINI_MAX_OUTPUT_TOKENS") or "4096")
+            timeout = float(os.getenv("GEMINI_TIMEOUT_SECONDS") or "60")
+            tokens = int(os.getenv("GEMINI_MAX_OUTPUT_TOKENS") or "8192")
         except ValueError:
             raise GenerationError(reason="configuration") from None
         if (not key or not re.fullmatch(r"gemini-[a-z0-9.-]*flash[a-z0-9.-]*", model)
@@ -89,6 +89,10 @@ class GeminiClient:
             raise ValueError("Prompt must not be blank.")
         started = perf_counter()
         config = {"maxOutputTokens": self.max_output_tokens}
+        # Bounded extraction/comparison does not need the 3.x default medium
+        # reasoning level, which can exhaust the output budget before JSON arrives.
+        if self.model_id.startswith('gemini-3'):
+            config['thinkingConfig'] = {'thinkingLevel': 'low'}
         if json_output:
             config["responseMimeType"] = "application/json"
         try:
