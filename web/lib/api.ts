@@ -24,11 +24,11 @@ import { MAX_UPLOAD_BYTES, uploadKind } from "@/lib/upload";
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 
-// The feature routes return 501 until W1 implements them, so the UI runs on
-// sample responses by default. Set NEXT_PUBLIC_USE_SAMPLE_DATA=false in
-// web/.env.local to call the backend instead.
+// The UI talks to the FastAPI backend by default. Set
+// NEXT_PUBLIC_USE_SAMPLE_DATA=true in web/.env.local to develop against
+// sample responses without a running backend.
 export const USING_SAMPLE_DATA =
-  process.env.NEXT_PUBLIC_USE_SAMPLE_DATA !== "false";
+  process.env.NEXT_PUBLIC_USE_SAMPLE_DATA === "true";
 
 /** POST /ask accepts 1–5 explicitly selected documents. */
 export const MAX_ASK_DOCUMENTS = 5;

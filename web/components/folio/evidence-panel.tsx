@@ -157,6 +157,12 @@ function EvidenceDetail({
           </div>
         </div>
         <dl className="mt-3.5 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1.5 text-[12px]">
+          {doc && (
+            <>
+              <dt className="text-[#9aa4b1]">File</dt>
+              <dd className="break-all text-[#4d5866]">{doc.filename}</dd>
+            </>
+          )}
           <dt className="text-[#9aa4b1]">Page</dt>
           <dd className="text-[#4d5866]">
             {citation.page ?? "None (text file)"}
