@@ -1,15 +1,120 @@
-body {
-  margin: 0;
-  background: #fafafa;
-  color: #171717;
-  font-family: Arial, Helvetica, sans-serif;
+@import "tailwindcss";
+
+/* Rare UI components ship dark: classes; tie them to a .dark class rather than
+   the OS theme, since Folio has a single light theme. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme inline {
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-runde: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-serif: Georgia, "Times New Roman", serif;
 }
 
-main {
-  max-width: 48rem;
-  margin: 5rem auto;
-  padding: 0 1.5rem;
+:root {
+  --foreground: #292d32;
+  --background: #f5f5f3;
+  font-synthesis: none;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
-h1 { font-size: 2.5rem; }
-p { margin-top: 1rem; line-height: 1.6; }
+@layer base {
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+  }
+
+  button:not(:disabled),
+  [role="button"] {
+    cursor: pointer;
+  }
+
+  :focus-visible {
+    outline: 2px solid #5599ee;
+    outline-offset: 3px;
+  }
+
+  ::selection {
+    background: #bed8f3;
+    color: #1e2a3c;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #c4c7cb;
+    border-radius: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+/* Hook Sidebar inside the dark document sidebar. */
+.folio-nav [data-slot="hook-sidebar-item"] {
+  padding: 0.55rem 0.5rem 0.55rem 1.4rem;
+  font-size: 13px;
+}
+.folio-nav [data-slot="hook-sidebar-item"][data-active="true"] {
+  color: #eaf0f8;
+  font-weight: 500;
+}
+.folio-nav [data-slot="hook-sidebar-item"]:not([data-active="true"]) {
+  color: #9ba4b0;
+}
+.folio-nav [data-slot="hook-sidebar-item"]:hover {
+  color: #e0e7f1;
+}
+
+/* Citation chips inside an answer. */
+.folio-answer [data-slot="web-search-citation"] {
+  margin-left: 3px;
+}
+.folio-answer [data-slot="web-search-citation"] > a {
+  height: 19px;
+  border-radius: 6px;
+  background: #e7edf5;
+  color: #5a78a3;
+  font-size: 10.5px;
+}
+.folio-answer [data-slot="web-search-citation"] > a:hover {
+  background: #d6e4f6;
+  color: #2f5d97;
+}
+.folio-answer [data-slot="web-search-citation"][data-active="true"] > a {
+  background: #2f5d97;
+  color: #fff;
+}
+
+/* Passage cards under an answer. */
+.folio-sources [data-slot="web-search-trigger"] {
+  height: 36px;
+  background: #ebeff3;
+}
+.folio-sources [data-slot="web-search-sources"] {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.folio-sources [data-slot="web-search-source"] {
+  background: #fff;
+  border: 1px solid #e1e6ec;
+  border-radius: 10px;
+}
+.folio-sources [data-slot="web-search-source"]:hover {
+  background: #f9fbfe;
+  border-color: #afc5e0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
