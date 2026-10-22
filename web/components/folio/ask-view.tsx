@@ -1,6 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { motion, useReducedMotion } from "motion/react";
+import { ScannableText } from "@/components/folio/scannable-text";
+import { CitationButton } from "@/components/folio/citation-button";
 import {
   ArrowUp,
   CircleSlash,
@@ -11,7 +14,6 @@ import {
 import { AiStatus } from "@/components/ui/ai-status";
 import {
   WebSearch,
-  WebSearchCitation,
   type WebSource,
 } from "@/components/ui/web-search";
 import {
@@ -22,6 +24,7 @@ import {
 } from "@/lib/reports";
 import type { AskResponse, Citation, FolioDocument } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { MAX_ASK_DOCUMENTS } from "@/lib/api";
 
 export type AskState =
   | { status: "idle" }
@@ -40,13 +43,14 @@ export function Composer({
 }) {
   const [value, setValue] = useState("");
   const noSelection = selectedCount === 0;
+  const tooManySelected = selectedCount > MAX_ASK_DOCUMENTS;
 
   return (
     <form
       onSubmit={(event) => {
         event.preventDefault();
         const question = value.trim();
-        if (!question || noSelection) return;
+        if (!question || noSelection || tooManySelected) return;
         onAsk(question);
         setValue("");
       }}
@@ -75,7 +79,7 @@ export function Composer({
         />
         <button
           type="submit"
-          disabled={!value.trim() || noSelection}
+          disabled={!value.trim() || noSelection || tooManySelected}
           aria-label="Ask question"
           className={cn(
             "grid shrink-0 place-items-center rounded-lg bg-[#252d37] text-white transition hover:enabled:-translate-y-px hover:enabled:bg-[#476c9a] disabled:bg-[#eceef0] disabled:text-[#a6adb6]",
@@ -89,12 +93,14 @@ export function Composer({
         className={cn(
           "text-[11px]",
           compact ? "px-4 pb-2.5" : "px-5 pb-3.5",
-          noSelection ? "text-[#b4593f]" : "text-[#8b95a1]",
+          noSelection || tooManySelected ? "text-[#b4593f]" : "text-[#8b95a1]",
         )}
       >
         {noSelection
           ? "Select at least one report to ask a question."
-          : `Answers only from the ${selectedCount} selected ${selectedCount === 1 ? "report" : "reports"}.`}
+          : tooManySelected
+            ? `Select up to ${MAX_ASK_DOCUMENTS} reports per question.`
+            : `Answers only from the ${selectedCount} selected ${selectedCount === 1 ? "report" : "reports"}.`}
       </p>
     </form>
   );
@@ -128,6 +134,7 @@ export function AskIntro({
 }
 
 type AnswerViewProps = {
+  heading?: string;
   state: Exclude<AskState, { status: "idle" }>;
   documents: FolioDocument[];
   activeCitation: Citation | null;
@@ -136,12 +143,14 @@ type AnswerViewProps = {
 };
 
 export function AnswerView({
+  heading,
   state,
   documents,
   activeCitation,
   onOpenCitation,
   onRetry,
 }: AnswerViewProps) {
+  const reduced = useReducedMotion();
   const response = state.status === "done" ? state.response : null;
   const question =
     state.status === "done" ? state.response.question : state.question;
@@ -151,21 +160,21 @@ export function AnswerView({
   // One source card per cited passage; chips share the card's number.
   const citations = response?.claims.flatMap((c) => c.citations) ?? [];
   const sources: WebSource[] = [];
-  const sourceNumber = new Map<string, number>();
+  const seen = new Set<string>();
   for (const citation of citations) {
-    if (sourceNumber.has(citation.passage_id)) continue;
+    if (seen.has(citation.passage_id)) continue;
     sources.push(toSource(citation, documents, onOpenCitation));
-    sourceNumber.set(citation.passage_id, sources.length);
+    seen.add(citation.passage_id);
   }
   const citedReports = new Set(citations.map((c) => c.doc_id)).size;
 
   return (
     <article className="folio-answer mx-auto w-full max-w-[720px] px-5 pb-10 pt-8 sm:px-8 sm:pt-10">
       <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#95a0ad]">
-        Question
+        {heading ? "Catch Me Up" : "Question"}
       </p>
       <h1 className="mt-2 text-[23px] font-medium leading-snug tracking-[-0.025em] text-[#2c333d] sm:text-[25px]">
-        {question}
+        {heading ?? question}
       </h1>
 
       <ul aria-label="Reports searched" className="mt-3 flex flex-wrap gap-1.5">
@@ -224,11 +233,7 @@ export function AnswerView({
       </div>
 
       {state.status === "loading" && (
-        <div aria-hidden className="mt-5 flex max-w-xl flex-col gap-4">
-          <span className="h-3 w-full animate-pulse rounded bg-[#e5e9ed]" />
-          <span className="h-3 w-11/12 animate-pulse rounded bg-[#e5e9ed]" />
-          <span className="h-3 w-2/3 animate-pulse rounded bg-[#e5e9ed]" />
-        </div>
+        <div aria-hidden className="briefing-skeleton">{[0, 1, 2].map((i) => <div key={i}><i /><span><b /><b /><b /></span></div>)}</div>
       )}
 
       {state.status === "error" && (
@@ -262,34 +267,22 @@ export function AnswerView({
 
       {response?.status === "answered" && (
         <>
-          {/* Claims carry the citations, so they are the answer body; each
-              sentence keeps its sources next to it. */}
-          <div className="mt-5 flex flex-col gap-3.5 text-[15px] leading-[1.85] text-[#4a5664]">
-            {response.claims.map((claim, claimIndex) => {
-              const cut = claim.text.lastIndexOf(" ") + 1;
-              return (
-                <p key={claimIndex}>
-                  {claim.text.slice(0, cut)}
-                  {/* keep the last word with its chips so a chip never wraps alone */}
-                  <span className="whitespace-nowrap">
-                    {claim.text.slice(cut)}
-                    {claim.citations.map((citation, citationIndex) => (
-                      <WebSearchCitation
-                        key={citationIndex}
-                        linked={false}
-                        source={toSource(citation, documents, onOpenCitation)}
-                        index={sourceNumber.get(citation.passage_id)}
-                        data-active={
-                          activeCitation?.passage_id === citation.passage_id &&
-                          activeCitation.quote === citation.quote
-                        }
-                      />
-                    ))}
-                  </span>
-                </p>
-              );
-            })}
-          </div>
+          <div className="takeaway-heading"><h2>{heading ? "The key takeaways" : "At a glance"}</h2><span><span className="status-dot" /> AI GENERATED · SOURCE LINKED</span></div>
+          <ol className="takeaway-grid">
+            {response.claims.map((claim, claimIndex) => (
+              <motion.li key={`${response.question}-${claimIndex}`} className="takeaway-card"
+                initial={{ opacity: 0, y: reduced ? 0 : 10 }} animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: reduced ? 0 : .25, delay: reduced ? 0 : Math.min(claimIndex * .045, .2) }}>
+                <span className="takeaway-number">{String(claimIndex + 1).padStart(2, "0")}</span>
+                <div><ScannableText text={claim.text} /><div className="claim-attribution">
+                  {claim.citations.map((citation, i) => <CitationButton key={i} citation={citation}
+                    active={activeCitation?.passage_id === citation.passage_id && activeCitation.quote === citation.quote}
+                    onOpen={onOpenCitation} />)}
+                </div></div>
+              </motion.li>
+            ))}
+          </ol>
+          <details className="answer-context"><summary>Read the full answer</summary><p>{response.answer}</p></details>
 
           <WebSearch
             className="folio-sources mt-7 w-full"
@@ -302,8 +295,8 @@ export function AnswerView({
 
       {response && (
         <p className="mt-8 flex flex-wrap gap-x-4 gap-y-1 border-t border-[#e4e7ea] pt-4 text-[11px] text-[#9ca5b1]">
-          <span>BM25 retrieval</span>
-          <span>{response.meta.elapsed_ms.toLocaleString("en-US")} ms</span>
+          <span>Generated from selected reports</span>
+          <span>{(response.meta.elapsed_ms / 1000).toFixed(1)}s</span>
           <span>{response.meta.cached ? "Cached result" : "Not cached"}</span>
         </p>
       )}

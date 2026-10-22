@@ -64,3 +64,13 @@ export const citationLabel = (c: { report_date: string; page: number | null }) =
   c.page === null
     ? formatShortDate(c.report_date)
     : `${formatShortDate(c.report_date)} · p. ${c.page}`;
+
+/** Attribution uses stored publisher metadata, never inferred reporting claims. */
+export function sourceDomain(url: string | null) {
+  if (!url) return "Uploaded report";
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return "Uploaded report";
+  }
+}

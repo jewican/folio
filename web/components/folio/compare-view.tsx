@@ -1,6 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { motion, useReducedMotion } from "motion/react";
+import { ScannableText } from "@/components/folio/scannable-text";
+import { CitationButton } from "@/components/folio/citation-button";
 import {
   ArrowLeftRight,
   ArrowRight,
@@ -10,9 +13,7 @@ import {
   Search,
   TriangleAlert,
 } from "lucide-react";
-import { toSource } from "@/components/folio/ask-view";
 import { AiStatus } from "@/components/ui/ai-status";
-import { WebSearchCitation } from "@/components/ui/web-search";
 import { formatShortDate, reportTone } from "@/lib/reports";
 import type {
   Change,
@@ -83,16 +84,15 @@ export function CompareView({
   const loading = state.status === "loading";
 
   return (
-    <div className="mx-auto w-full max-w-[760px] px-5 pb-12 pt-10 sm:px-8 sm:pt-14">
+    <div className="compare-view mx-auto w-full max-w-[760px] px-5 pb-12 pt-10 sm:px-8 sm:pt-14">
       <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#95a0ad]">
         Compare versions
       </p>
       <h1 className="mt-3 text-[25px] font-semibold leading-[1.2] tracking-[-0.035em] text-[#2c333d] sm:text-[29px]">
-        What changed between two dated reports?
+        A clearer view of what changed.
       </h1>
       <p className="mt-3 max-w-xl text-[14px] leading-relaxed text-[#77818d]">
-        Pick an older and a newer report. Each change is backed by passages from
-        both versions; information only in the newer report is marked as added.
+        Two reports. The differences. The evidence on each side.
       </p>
 
       <form
@@ -248,15 +248,6 @@ function CompareResult({
   const older = documents.find((d) => d.doc_id === request.older_doc_id);
   const newer = documents.find((d) => d.doc_id === request.newer_doc_id);
 
-  // Chips share one number per cited passage across the whole comparison.
-  const sourceNumber = new Map<string, number>();
-  for (const change of response?.changes ?? []) {
-    for (const c of [...change.older_citations, ...change.newer_citations]) {
-      if (!sourceNumber.has(c.passage_id)) {
-        sourceNumber.set(c.passage_id, sourceNumber.size + 1);
-      }
-    }
-  }
 
   return (
     <article className="folio-answer mt-10 border-t border-[#e4e7ea] pt-8">
@@ -368,17 +359,14 @@ function CompareResult({
 
       {response?.status === "compared" && (
         <>
-          <p className="mt-5 text-[15px] leading-[1.8] text-[#4a5664]">
-            {response.summary}
-          </p>
+          <div className="comparison-overview"><span className="news-eyebrow">THE BIG PICTURE</span><ScannableText text={response.summary} /><div className="change-counts">{(["updated", "added", "unresolved"] as const).map((kind) => { const count = response.changes.filter((change) => change.kind === kind).length; return count ? <span key={kind} data-kind={kind}>{count} {KIND_STYLES[kind].label.toLowerCase()}</span> : null; })}</div></div>
           {response.changes.length > 0 && (
             <ol className="mt-6 grid gap-3.5">
               {response.changes.map((change, index) => (
                 <ChangeCard
                   key={index}
                   change={change}
-                  documents={documents}
-                  sourceNumber={sourceNumber}
+                  index={index}
                   activeCitation={activeCitation}
                   onOpenCitation={onOpenCitation}
                 />
@@ -390,8 +378,8 @@ function CompareResult({
 
       {response && (
         <p className="mt-8 flex flex-wrap gap-x-4 gap-y-1 border-t border-[#e4e7ea] pt-4 text-[11px] text-[#9ca5b1]">
-          <span>BM25 retrieval</span>
-          <span>{response.meta.elapsed_ms.toLocaleString("en-US")} ms</span>
+          <span>Generated from both reports</span>
+          <span>{(response.meta.elapsed_ms / 1000).toFixed(1)}s</span>
           <span>{response.meta.cached ? "Cached result" : "Not cached"}</span>
         </p>
       )}
@@ -405,95 +393,28 @@ const KIND_STYLES: Record<Change["kind"], { label: string; className: string }> 
   unresolved: { label: "Unresolved", className: "bg-[#fbf3e3] text-[#9a7432]" },
 };
 
-function ChangeCard({
-  change,
-  documents,
-  sourceNumber,
-  activeCitation,
-  onOpenCitation,
-}: {
+function ChangeCard({ change, index, activeCitation, onOpenCitation }: {
   change: Change;
-  documents: FolioDocument[];
-  sourceNumber: Map<string, number>;
+  index: number;
   activeCitation: Citation | null;
   onOpenCitation: (citation: Citation) => void;
 }) {
+  const reduced = useReducedMotion();
   const kind = KIND_STYLES[change.kind];
-  const side = (
-    label: string,
-    text: string | null,
-    citations: Citation[],
-    emptyText: string,
-  ) => {
+  function side(label: string, text: string | null, citations: Citation[]) {
     const cited = citations[0];
-    return (
-      <div className="min-w-0 rounded-lg bg-[#f6f7f8] p-3">
-        <p className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#8e98a5]">
-          {cited && (
-            <span
-              aria-hidden
-              className="size-1.5 rounded-full"
-              style={{ background: reportTone(cited.doc_id, documents) }}
-            />
-          )}
-          {label}
-          {cited && (
-            <span className="font-normal normal-case tracking-normal text-[#a3acb7]">
-              · {formatShortDate(cited.report_date)}
-            </span>
-          )}
-        </p>
-        {text ? (
-          <p className="mt-1.5 text-[13.5px] leading-relaxed text-[#3e4856]">
-            {text}
-            {citations.map((citation, i) => (
-              <WebSearchCitation
-                key={i}
-                linked={false}
-                source={toSource(citation, documents, onOpenCitation)}
-                index={sourceNumber.get(citation.passage_id)}
-                data-active={
-                  activeCitation?.passage_id === citation.passage_id &&
-                  activeCitation.quote === citation.quote
-                }
-              />
-            ))}
-          </p>
-        ) : (
-          <p className="mt-1.5 text-[13px] italic text-[#9aa3ae]">{emptyText}</p>
-        )}
-      </div>
-    );
-  };
-
-  return (
-    <li className="rounded-xl border border-[#e3e6ea] bg-white p-4 shadow-[0_1px_2px_#00000005] sm:p-5">
-      <span
-        className={cn(
-          "inline-block rounded-full px-2 py-0.5 text-[11px] font-medium",
-          kind.className,
-        )}
-      >
-        {kind.label}
-      </span>
-      <p className="mt-2 text-[14.5px] font-medium leading-snug text-[#2f3843]">
-        {change.summary}
-      </p>
-      <div className="mt-3 grid gap-2.5 sm:grid-cols-2">
-        {side(
-          "Before",
-          change.before,
-          change.older_citations,
-          "No earlier statement cited for this.",
-        )}
-        {side("After", change.after, change.newer_citations, "")}
-      </div>
-      {change.kind === "unresolved" && (
-        <p className="mt-2.5 text-[12px] leading-relaxed text-[#8f7c57]">
-          The two reports don&apos;t describe this in comparable terms, so no
-          change is asserted.
-        </p>
-      )}
-    </li>
-  );
+    return <div className={`change-side change-${label.toLowerCase()}`}>
+      <div className="change-side-heading"><span>{label}</span>{cited && <time dateTime={cited.report_date}>{formatShortDate(cited.report_date)}</time>}</div>
+      <ScannableText text={text ?? "No earlier statement cited. No prior state is inferred."} />
+      <div className="claim-attribution">{citations.map((citation, i) => <CitationButton key={i} citation={citation} active={activeCitation?.passage_id === citation.passage_id && activeCitation.quote === citation.quote} onOpen={onOpenCitation} />)}</div>
+    </div>;
+  }
+  return <motion.li className="change-card" data-kind={change.kind}
+    initial={{ opacity: 0, y: reduced ? 0 : 10 }} animate={{ opacity: 1, y: 0 }}
+    transition={{ duration: reduced ? 0 : .25, delay: reduced ? 0 : Math.min(index * .05, .2) }}>
+    <div className="change-card-heading"><span className={cn("change-kind", kind.className)}>{change.kind === "updated" ? <ArrowLeftRight size={12} /> : <GitCompareArrows size={12} />}{kind.label}</span><span className="change-index">{String(index + 1).padStart(2, "0")}</span></div>
+    <ScannableText text={change.summary} as="h3" lines={3} />
+    <div className="change-sides">{side("Before", change.before, change.older_citations)}<span className="change-direction" aria-hidden><ArrowRight size={17} /></span>{side("After", change.after, change.newer_citations)}</div>
+    {change.kind === "unresolved" && <p className="change-caveat"><CircleSlash size={13} />Different accounts; the evidence does not establish a comparable change.</p>}
+  </motion.li>;
 }

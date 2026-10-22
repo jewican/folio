@@ -1,5 +1,5 @@
-import { FolioApp } from "@/components/folio/folio-app";
+import { NewsHome } from "@/components/folio/news-home";
 
 export default function Home() {
-  return <FolioApp />;
+  return <NewsHome />;
 }
