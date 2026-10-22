@@ -37,4 +37,5 @@ __pycache__/
 # Personal notes and machine files
 .local/
 .DS_Store
+*:Zone.Identifier
 *.log
