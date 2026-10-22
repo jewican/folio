@@ -2,6 +2,7 @@
 from datetime import date, datetime, timezone
 import os
 import re
+from time import perf_counter
 from pathlib import Path
 from typing import Annotated
 from uuid import uuid4
@@ -11,10 +12,11 @@ from pydantic import BeforeValidator, HttpUrl
 
 from app.contracts import (
     AskRequest, AskResponse, CompareRequest, CompareResponse,
-    Document, DocumentList, Health, Passage,
+    Document, DocumentList, Health, Passage, ResponseMeta,
 )
+from app.generation.answer import generate_answer
 from app.storage.database import Storage, get_storage
-from app.storage.ingestion import Ingestor, InvalidDocument, get_ingestor
+from app.storage.ingestion import Ingestor, InvalidDocument, ExtractionError, get_ingestor
 
 router = APIRouter()
 STUB_RESPONSE = {501: {"description": "Feature implementation has not started"}}
@@ -104,6 +106,9 @@ def upload_document(
         storage.save(document, passages, original)
         saved = True
         return document
+    except ExtractionError as exc:
+        status = {"upload_too_large": 413, "unsupported_file_type": 415}.get(exc.code, 422)
+        raise upload_error(status, exc.code, str(exc)) from None
     except InvalidDocument:
         raise upload_error(422, "invalid_document", "Document must contain readable text and must not be encrypted.") from None
     finally:
@@ -112,9 +117,23 @@ def upload_document(
             original.unlink(missing_ok=True)
 
 
-@router.post("/ask", response_model=AskResponse, responses=STUB_RESPONSE, tags=["answers"])
-def ask(request: AskRequest):
-    not_implemented()
+@router.post("/ask", response_model=AskResponse, tags=["answers"])
+def ask(request: AskRequest, storage: Annotated[Storage, Depends(get_storage)]):
+    started = perf_counter()
+    ready = {document.doc_id for document in storage.list_documents()}
+    if not set(request.doc_ids) <= ready:
+        raise upload_error(404, "document_not_found", "A selected document was not found.")
+    passages = storage.retrieve(request.question, request.doc_ids)
+    claims = generate_answer(request.question, passages) if passages else []
+    return AskResponse(
+        question=request.question, doc_ids=request.doc_ids,
+        status="answered" if claims else "insufficient_evidence",
+        answer=" ".join(claim.text for claim in claims) if claims else (
+            "The selected documents do not provide enough evidence to answer this question."
+        ),
+        claims=claims,
+        meta=ResponseMeta(elapsed_ms=round((perf_counter() - started) * 1000), cached=False),
+    )
 
 
 @router.post("/compare", response_model=CompareResponse, responses=STUB_RESPONSE, tags=["answers"])

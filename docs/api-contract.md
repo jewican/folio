@@ -9,13 +9,14 @@ those schemas at `/openapi.json` and `/docs`. This document defines semantics th
 schemas alone cannot enforce. Coordinate changes with W2–W4 before editing.
 Unknown JSON request fields are rejected. Clients must use the shapes below.
 
-**Current implementation:** health, document upload/listing, and passage lookup
-work with local SQLite/files and basic TXT/PDF extraction behind a replaceable
-ingestion function. BM25 integration remains pending W2. Valid `/ask` and
-`/compare` requests return 501 with
-`{"detail":{"code":"not_implemented","message":"Contract defined; feature not implemented."}}`.
-Retrieval, generation, and citation integrity below remain commitments for feature
-implementation. FastAPI performs request shape validation (422).
+**Current implementation:** health, document upload/listing, passage lookup, and
+`/ask` work with local SQLite/files, W2 PDF/TXT extraction and selection-scoped
+BM25, and the configured Gemini Flash client. Upload builds a replacement index
+before committing; retrieval rebuilds from saved passages after restart. Answers
+validate citation IDs and exact quotes against supplied passages and use stored
+metadata. Unsupported questions return `insufficient_evidence`; invalid model
+output returns 502. Valid `/compare` requests still return 501. FastAPI performs
+request shape validation (422).
 
 ## Operations
 

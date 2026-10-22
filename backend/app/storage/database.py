@@ -2,9 +2,12 @@
 import os
 import sqlite3
 from contextlib import closing
+from functools import lru_cache
+from threading import RLock
 from pathlib import Path
 
 from app.contracts import Document, Passage
+from app.retrieval import BM25Index
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 
@@ -16,6 +19,9 @@ def local_path(value: str) -> Path:
 
 class Storage:
     def __init__(self, data_dir: Path, database_path: Path):
+        self._lock = RLock()
+        self._index = None
+        self._indexed_count = -1
         self.upload_dir = data_dir / "uploads"
         self.database_path = database_path
         self.upload_dir.mkdir(parents=True, exist_ok=True)
@@ -39,15 +45,35 @@ class Storage:
         connection.execute("PRAGMA foreign_keys = ON")
         return connection
 
+    @staticmethod
+    def _build_index(connection):
+        passages = [Passage.model_validate_json(row[0]) for row in connection.execute(
+            "SELECT payload FROM passages ORDER BY passage_id"
+        )]
+        return BM25Index(passages), len(passages)
+
     def save(self, document: Document, passages: list[Passage], original: Path):
-        with closing(self.connect()) as connection, connection:
-            connection.execute("INSERT INTO documents VALUES (?, ?, ?, ?)", (
-                document.doc_id, document.report_date.isoformat(), str(original),
-                document.model_dump_json(),
-            ))
-            connection.executemany("INSERT INTO passages VALUES (?, ?, ?)", [
-                (p.passage_id, p.doc_id, p.model_dump_json()) for p in passages
-            ])
+        with self._lock:
+            with closing(self.connect()) as connection, connection:
+                connection.execute("INSERT INTO documents VALUES (?, ?, ?, ?)", (
+                    document.doc_id, document.report_date.isoformat(), str(original),
+                    document.model_dump_json(),
+                ))
+                connection.executemany("INSERT INTO passages VALUES (?, ?, ?)", [
+                    (p.passage_id, p.doc_id, p.model_dump_json()) for p in passages
+                ])
+                # Build before commit: failed indexing rolls back publication too.
+                replacement, count = self._build_index(connection)
+            self._index, self._indexed_count = replacement, count
+
+    def retrieve(self, question: str, doc_ids: list[str]) -> list[Passage]:
+        with self._lock, closing(self.connect()) as connection, connection:
+            # One read snapshot, also detecting uploads from another worker.
+            connection.execute("BEGIN")
+            count = connection.execute("SELECT count(*) FROM passages").fetchone()[0]
+            if self._index is None or count != self._indexed_count:
+                self._index, self._indexed_count = self._build_index(connection)
+            return self._index.retrieve(question, doc_ids, k=6)
 
     def list_documents(self) -> list[Document]:
         with closing(self.connect()) as connection:
@@ -63,8 +89,13 @@ class Storage:
         return Passage.model_validate_json(row[0]) if row else None
 
 
+@lru_cache(maxsize=8)
+def _storage(data_dir: Path, database_path: Path) -> Storage:
+    return Storage(data_dir, database_path)
+
+
 def get_storage() -> Storage:
-    return Storage(
+    return _storage(
         local_path(os.getenv("FOLIO_DATA_DIR", "data")),
         local_path(os.getenv("FOLIO_DATABASE_PATH", "data/folio.sqlite3")),
     )

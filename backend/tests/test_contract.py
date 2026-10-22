@@ -40,7 +40,6 @@ def test_health_and_openapi_contract(client):
 
 
 @pytest.mark.parametrize('method,path,kwargs', [
-    ('post', '/ask', {'json': {'question': 'What happened?', 'doc_ids': ['doc_older']}}),
     ('post', '/compare', {'json': {'older_doc_id': 'doc_older', 'newer_doc_id': 'doc_newer'}}),
 ])
 def test_features_are_explicit_stubs(client, method, path, kwargs):
@@ -103,7 +102,7 @@ def test_list_ordering_and_unknown_passage(client):
     (b'', 'a.txt', 'text/plain', 422, 'invalid_document'),
     (b' \n\t', 'a.txt', 'text/plain', 422, 'invalid_document'),
     (b'\xff\xfe', 'a.txt', 'text/plain', 422, 'invalid_document'),
-    (b'hello\x00', 'a.txt', 'text/plain', 422, 'invalid_document'),
+    (b'hello\x00', 'a.txt', 'text/plain', 415, 'unsupported_file_type'),
     (b'hello', 'a.exe', 'text/plain', 415, 'unsupported_file_type'),
     (b'hello', 'a.pdf', 'text/plain', 415, 'unsupported_file_type'),
     (b'hello', 'a.pdf', 'application/pdf', 415, 'unsupported_file_type'),
@@ -401,3 +400,125 @@ def test_model_smoke_records_safe_diagnostics(model_env, monkeypatch, tmp_path, 
         assert record['error']['provider_http_status'] == 429
     assert 'test-secret-fallback' not in path.read_text()
     assert 'test-secret-fallback' not in capsys.readouterr().out
+
+
+@pytest.mark.parametrize('pdf', [False, True])
+def test_complete_ask_path(client, tmp_path, model_env, monkeypatch, pdf):
+    from app.storage.database import _storage
+    older = upload(client, make_pdf() if pdf else b'Ten shelters opened.',
+                   'report.pdf' if pdf else 'report.txt',
+                   'application/pdf' if pdf else 'text/plain').json()
+    newer = upload(client, b'Twenty shelters opened.', report_date='2026-10-21').json()
+    calls = []
+
+    def respond(request):
+        prompt = json.loads(request.content)['contents'][0]['parts'][0]['text']
+        context = json.loads(prompt.split('INPUT_JSON:\n', 1)[1])
+        calls.append(context)
+        assert {p['doc_id'] for p in context['passages']} == {older['doc_id']}
+        passage = next(p for p in context['passages'] if 'Ten shelters' in p['text'])
+        result = {'status': 'answered', 'claims': [{
+            'text': 'Ten shelters opened.', 'citations': [{
+                'passage_id': passage['passage_id'], 'quote': 'Ten shelters opened.'}]}]}
+        return httpx.Response(200, json={'modelVersion': 'test', 'candidates': [{
+            'finishReason': 'STOP', 'content': {'parts': [{'text': json.dumps(result)}]}}]})
+
+    mock_model_transport(model_env, monkeypatch, respond)
+    for restart in [False, True]:
+        if restart:
+            _storage.cache_clear()  # Simulate losing every process-local index.
+        response = client.post('/ask', json={'question': 'How many shelters opened?',
+                                            'doc_ids': [older['doc_id']]})
+        assert response.status_code == 200, response.text
+        answer = AskResponse.model_validate(response.json())
+        assert answer.status == 'answered'
+        assert answer.answer == 'Ten shelters opened.'
+        citation = answer.claims[0].citations[0]
+        evidence = client.get('/passages/' + citation.passage_id).json()
+        assert citation.quote in evidence['text']
+        assert citation.doc_id != newer['doc_id']
+        assert citation.page == (1 if pdf else None)
+        assert answer.meta.cached is False
+    assert len(calls) == 2
+
+
+@pytest.mark.parametrize('failure', ['unknown_id', 'unselected_id', 'unretrieved_id',
+                                    'bad_quote', 'uncited', 'malformed', 'timeout', 'provider'])
+def test_ask_rejects_invalid_generation(client, tmp_path, model_env, monkeypatch, failure):
+    from app.storage.database import get_storage
+    selected = upload(client, b'Ten shelters opened.').json()['doc_id']
+    other = upload(client, b'Twenty shelters opened.').json()['doc_id']
+    rows = stored_passages(tmp_path)
+    selected_passage = next(p for p in rows if p['doc_id'] == selected)
+    other_passage = next(p for p in rows if p['doc_id'] == other)
+    if failure == 'unretrieved_id':
+        # A selected document alone is insufficient: citation must be in context.
+        monkeypatch.setattr(get_storage(), 'retrieve', lambda *args: [Passage.model_validate(other_passage)])
+    citation = {'passage_id': selected_passage['passage_id'], 'quote': 'Ten shelters opened.'}
+    if failure == 'unknown_id':
+        citation['passage_id'] = 'invented'
+    if failure == 'unselected_id':
+        citation = {'passage_id': other_passage['passage_id'], 'quote': 'Twenty shelters opened.'}
+    if failure == 'bad_quote':
+        citation['quote'] = 'One hundred shelters opened.'
+
+    def respond(request):
+        if failure == 'timeout':
+            raise httpx.ReadTimeout('private secret', request=request)
+        if failure == 'provider':
+            return httpx.Response(503, text='private secret')
+        result = {'status': 'answered', 'claims': [{'text': 'Ten shelters opened.',
+                   'citations': [] if failure == 'uncited' else [citation]}]}
+        text = 'not JSON' if failure == 'malformed' else json.dumps(result)
+        return httpx.Response(200, json={'modelVersion': 'test', 'candidates': [{
+            'finishReason': 'STOP', 'content': {'parts': [{'text': text}]}}]})
+
+    mock_model_transport(model_env, monkeypatch, respond)
+    response = client.post('/ask', json={'question': 'shelters', 'doc_ids': (
+        [selected, other] if failure == 'unretrieved_id' else [selected])})
+    assert response.status_code == (504 if failure == 'timeout' else 502)
+    assert 'private secret' not in response.text
+
+
+def test_ask_empty_evidence_and_unknown_selection(client, monkeypatch):
+    from app.generation import answer
+    def fail():
+        pytest.fail('No model call should be made')
+    monkeypatch.setattr(answer, 'get_model_client', fail)
+    doc_id = upload(client, b'Ten shelters opened.').json()['doc_id']
+    response = client.post('/ask', json={'question': 'astronauts', 'doc_ids': [doc_id]})
+    assert response.status_code == 200
+    assert response.json()['status'] == 'insufficient_evidence'
+    assert response.json()['claims'] == []
+    assert 'enough evidence' in response.json()['answer']
+    response = client.post('/ask', json={'question': 'shelters', 'doc_ids': [doc_id, 'missing']})
+    assert response.status_code == 404
+    assert response.json()['detail']['code'] == 'document_not_found'
+
+
+def test_model_can_report_insufficient_evidence(client, model_env, monkeypatch):
+    doc_id = upload(client, b'Ten shelters opened.').json()['doc_id']
+    def respond(request):
+        return httpx.Response(200, json={'modelVersion': 'test', 'candidates': [{
+            'finishReason': 'STOP', 'content': {'parts': [{'text': json.dumps({
+                'status': 'insufficient_evidence', 'claims': []})}]}}]})
+    mock_model_transport(model_env, monkeypatch, respond)
+    response = client.post('/ask', json={'question': 'Who funds shelters?', 'doc_ids': [doc_id]})
+    assert response.status_code == 200
+    assert response.json()['status'] == 'insufficient_evidence'
+    assert response.json()['claims'] == []
+
+
+def test_index_failure_rolls_back_upload(client, tmp_path, monkeypatch):
+    from app.storage.database import Storage, get_storage
+    doc_id = upload(client, b'Ten shelters opened.').json()['doc_id']
+    original_ids = [p.passage_id for p in get_storage().retrieve('shelters', [doc_id])]
+    def fail(connection):
+        raise OSError('private path')
+    monkeypatch.setattr(Storage, '_build_index', staticmethod(fail))
+    response = upload(client, b'Twenty shelters opened.')
+    assert response.status_code == 500
+    assert len(client.get('/documents').json()['documents']) == 1
+    assert len(stored_passages(tmp_path)) == 1
+    assert len(list((tmp_path / 'uploads').iterdir())) == 1
+    assert [p.passage_id for p in get_storage().retrieve('shelters', [doc_id])] == original_ids
