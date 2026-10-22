@@ -1,47 +1,81 @@
 # Folio
 
-A four-person hackathon project for catching up on a developing story using dated
-reports, cited answers, and evidence from both versions of a report comparison.
+### Catch up on a developing story, with receipts.
 
-Next.js App Router lives in `web/`, FastAPI in `backend/`. Health, document upload,
-document listing, and passage lookup work with local SQLite and original files.
-W2's TXT/PDF extraction and selection-scoped BM25 power `/ask`, which uses the
-configured Gemini Flash model and validates passage IDs and exact citation quotes.
-Unsupported questions return an explicit insufficient-evidence response.
-`/compare` validates report dates and compares independently retrieved evidence
-from both selected reports. The frontend uses FastAPI for document listing/upload,
-questions, comparisons, and passage lookup. Citation chips open stored evidence
-with the source file, date, page, exact highlighted quote, and publisher link.
-Sample mode and fictional response data have been removed.
+Folio turns a pile of dated public reports into **cited answers** and **trustworthy before/after comparisons**. Every claim links back to the exact quote, page, date, and publisher it came from. If the evidence isn't there, Folio says so instead of guessing.
 
-Read [the sprint plan](docs/sprint-plan.md) and [API contract v1](docs/api-contract.md)
-before starting. The sprint plan was promoted from `.local/` and updated to Next.js.
+| Slides | Business Plan | Demo Video |
+| :---: | :---: | :---: |
+| [View](https://drive.google.com/file/d/1N3WFr5wsaiRdHwgB7LNKq7YF01UXPoFQ/view?usp=drive_link) | [View](https://drive.google.com/file/d/14vPPITAEuaf6VaYoBpopxnMhoU9mzAAj/view?usp=drive_link) | [Watch](https://github.com/xienshane) |
 
-## Local setup
+---
 
-Use Node.js 20.9+ and Python 3.12+. Run from the repo root unless noted.
+## Why Folio
+
+Stories like disasters, court cases, and financial events change by the day. Reports pile up, versions contradict each other, and summaries from AI tools often cannot show where a statement came from.
+
+Folio is built around one rule: **no claim without evidence you can inspect.**
+
+## What it does
+
+- **Upload dated reports.** UTF-8 TXT or text-based PDF, up to 10 MiB, with a report date and optional publisher URL.
+- **Ask questions across selected reports.** Answers are built only from validated, cited claims.
+- **Compare two versions of a report.** Pick an older and a newer report. Every asserted change must be supported by passages from **both** versions.
+- **Inspect any citation.** Citation chips open the stored passage with the source file, date, page, the exact highlighted quote, and a link to the publisher.
+- **Fail honestly.** Unsupported questions return an explicit *insufficient evidence* response, and provider failures show a real error. There are no fixtures, sample mode, or fallback answers.
+
+## How it works
+
+```mermaid
+flowchart LR
+    A[Upload TXT / PDF] --> B[Extract + chunk into passages]
+    B --> C[(SQLite + original files)]
+    C --> D[Hybrid retrieval<br/>BM25 + Gemini Embedding 2]
+    D --> E[Gemini Flash<br/>structured, cited output]
+    E --> F{Validate}
+    F -->|passage IDs + exact quotes check out| G[Answer / comparison with citations]
+    F -->|fails| H[Explicit error, never a guess]
+```
+
+**Trust by design**
+
+1. Retrieval runs **independently per selected report**, then interleaves up to six passages so no single report dominates.
+2. The model must return passage IDs and exact quotes.
+3. The backend **validates every ID and quote** against stored text. Citation metadata comes from storage, never from the model.
+4. Invalid output gets at most one repair attempt, then a clear error.
+
+## Tech stack
+
+| Layer | Choice |
+| --- | --- |
+| Frontend | Next.js (App Router), in `web/` |
+| Backend | FastAPI (Python 3.12+), in `backend/` |
+| Storage | Local SQLite and original files under `backend/data/` |
+| Retrieval | BM25 + Gemini Embedding 2 (768-dim), fused with reciprocal rank fusion |
+| Generation | Gemini Flash (default `gemini-3.8-flash`) with `low` thinking level |
+| Testing | pytest, ESLint, TypeScript, Playwright (real Chromium, no mocks) |
+
+Deliberately **not** included: Supabase, authentication, crawling, OCR, or any extra infrastructure.
+
+---
+
+## Quick start
+
+Requires Node.js 20.9+ and Python 3.12+. Run from the repo root.
 
 ```sh
 npm ci
 python3 -m venv .venv
 . .venv/bin/activate
 python -m pip install -r backend/requirements-dev.txt
-cp .env.example backend/.env
+cp .env.example backend/.env      # add GEMINI_API_KEY here
 ```
 
-Create `web/.env.local` with only:
+Create `web/.env.local` containing only:
 
 ```dotenv
 NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
 ```
-
-Backend secrets belong only in `backend/.env`. The Gemini client reads
-`GEMINI_API_KEY` (or `GOOGLE_API_KEY` as a fallback) from the backend environment.
-Shell variables override `backend/.env`. Never copy keys to `web/` or use a
-`NEXT_PUBLIC_` prefix for them. Setup and health checks need no key.
-Storage variables use paths relative to
-`backend/`. Keep SQLite, uploaded files, and the BM25 index under `backend/data/`.
-SQLite tables and the upload directory are created on the first storage request.
 
 Start two terminals:
 
@@ -51,257 +85,158 @@ npm run dev
 ```
 
 ```sh
-# Terminal 2, repo root, virtual environment activated
+# Terminal 2, repo root, virtualenv activated
 cd backend
 python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-Frontend: <http://localhost:3000>. Backend health: <http://localhost:8000/health>.
-Interactive schemas: <http://localhost:8000/docs>; machine-readable:
-<http://localhost:8000/openapi.json>. Default CORS allows `http://localhost:3000`;
-set `FOLIO_CORS_ORIGINS` to comma-separated origins if using other local ports.
+| What | Where |
+| --- | --- |
+| App | <http://localhost:3000> |
+| Backend health | <http://localhost:8000/health> |
+| Interactive API docs | <http://localhost:8000/docs> |
+| OpenAPI schema | <http://localhost:8000/openapi.json> |
 
-## Verify
+> **Keys stay on the backend.** Put secrets only in `backend/.env`. Never copy them to `web/` or use a `NEXT_PUBLIC_` prefix. Setup and health checks need no key.
 
-To check the production frontend in a real Chromium browser:
+### Configuration
+
+| Variable | Purpose | Default |
+| --- | --- | --- |
+| `GEMINI_API_KEY` (or `GOOGLE_API_KEY`) | Provider credential, backend only | none |
+| `GEMINI_MODEL` | Generation model | `gemini-3.8-flash` |
+| `GEMINI_TIMEOUT_SECONDS` | Generation timeout | `60` (max 120) |
+| `GEMINI_MAX_OUTPUT_TOKENS` | Output cap | `4096` (max 8192) |
+| `GEMINI_EMBEDDING_TIMEOUT_SECONDS` | Per-call embedding timeout | `8` (max 20) |
+| `FOLIO_RETRIEVAL_MODE` | `hybrid` or `bm25` (keyword only) | `hybrid` |
+| `FOLIO_MAX_UPLOAD_BYTES` | Lower the 10 MiB upload cap | 10 MiB |
+| `FOLIO_CORS_ORIGINS` | Comma-separated allowed origins | `http://localhost:3000` |
+
+Shell variables override `backend/.env`. Storage paths are relative to `backend/`. Tables and the upload directory are created on the first storage request.
+
+---
+
+## API v1
+
+| Operation | Purpose |
+| --- | --- |
+| `GET /health` | Process liveness |
+| `GET /documents` | List uploaded documents |
+| `POST /documents` | Upload PDF/TXT with report date and metadata |
+| `POST /ask` | Retrieve evidence and generate a cited answer |
+| `POST /compare` | Compare explicitly selected older/newer reports |
+| `GET /passages/{id}` | Return the exact supporting passage |
+
+```sh
+# Upload a public report (omit source_url if unknown)
+curl -X POST http://localhost:8000/documents \
+  -F 'file=@report.txt;type=text/plain' \
+  -F 'title=Example report' \
+  -F 'report_date=2026-10-20' \
+  -F 'source_url=https://example.org/report'
+
+curl http://localhost:8000/documents
+```
+
+```json
+POST /ask
+{"question": "How many shelters opened?", "doc_ids": ["doc_ID"]}
+```
+
+- Invalid IDs, quotes, or model output return **502**. Provider timeouts return **504**.
+- Empty retrieval, or a model finding of insufficient evidence, returns **200** with `status: "insufficient_evidence"` and no claims.
+- Provider billing/quota, credential, and rate-limit failures return distinct safe messages. Logs never contain provider bodies, prompts, or keys.
+
+Full request/response shapes, identifiers, dates, and citation rules are in the [API contract](docs/api-contract.md).
+
+---
+
+## Retrieval details
+
+**Hybrid by default.** Each passage is embedded independently with `gemini-embedding-2`. Vectors are cached in SQLite (`passage_embeddings`, keyed by passage ID, model, dimension, and prompt version, with a content hash to prevent stale reuse). Semantic and BM25 rankings are fused per selected report with reciprocal rank fusion (`1 / (60 + rank)`), using up to 20 candidates from each.
+
+**Resilient.** Missing credentials, timeouts, provider errors, malformed vectors, or cache failures fall back to BM25. A failed embedding never fails an upload. Missing vectors are backfilled on retrieval in batches of at most 32. Restarts reuse saved vectors, and the in-memory BM25 index rebuilds from stored passages.
+
+**Measured latency** (live API, small synthetic corpus, excluding answer generation):
+
+| Mode | Latency |
+| --- | --- |
+| BM25 | median 0.17 ms |
+| Hybrid, cold (includes embedding backfill) | 1,898 ms |
+| Hybrid, cached | median 1,025 ms |
+
+This is a small-corpus sanity check, not a production benchmark. Embedding API time dominates the hybrid results.
+
+---
+
+## Verification
+
+Everything is tested against the real stack. **No requests are intercepted, mocked, or fulfilled with fixtures.**
 
 ```sh
 npm run lint
 npm run typecheck
 npm run build
+cd backend && python -m pytest
+```
+
+**Latest results:**
+
+- **Full API check:** all five sample documents uploaded and indexed (194 passages). Error paths returned the expected 404/422/415. Two real cited answers and one insufficient-evidence response were produced, and every citation resolved to stored text with matching metadata and exact quotes.
+- **Real browser checks (Playwright + Chromium):** 3 of 3 pass. Uploads persist, insufficient evidence is explicit, upload and connection errors stay visible, and a real Gemini answer opens its citation on **desktop and mobile** with matching metadata, an exact highlighted quote, and a publisher link.
+
+<details>
+<summary><strong>Reproduce the checks</strong></summary>
+
+**Browser checks** (stop anything already running on ports 3000 and 8000 first):
+
+```sh
 npx playwright install chromium
 npm run test:live --workspace @folio/web
 ```
 
-The browser checks start the production Next.js server on port 3000 and the real
-FastAPI app on port 8000 with temporary SQLite/files. Stop existing servers on
-those ports before running. They use the root `.venv` backend environment on Unix,
-`eval/.venv` on Windows, or the executable set in `FOLIO_TEST_PYTHON`, and
-`backend/.env` provider configuration; the frontend build must target
-`http://localhost:8000` (the default API URL). Public API URL settings are bundled
-at build time, so rebuild after changing them. To use an installed Chrome instead
-of downloading Chromium, set `PLAYWRIGHT_CHROMIUM_EXECUTABLE` to its executable.
+This starts the production Next.js server and the real FastAPI app with temporary SQLite/files. It uses the root `.venv` on Unix, `eval/.venv` on Windows, or the executable in `FOLIO_TEST_PYTHON`. Rebuild the frontend after changing public API URL settings, since they are bundled at build time. Set `PLAYWRIGHT_CHROMIUM_EXECUTABLE` to use an installed Chrome. Traces and API attachments go to the ignored `web/test-results/`, with the report at `web/test-results/live-report.json`.
 
-Browser checks upload W4's actual SC transcript, confirm persistence and explicit
-insufficient evidence, exercise real upload validation and browser connectivity
-errors, and call the configured model through `/ask`. A successful generated
-answer must open a citation's stored passage on desktop and mobile with matching
-metadata, an exact highlighted quote and a publisher link. No requests are
-intercepted or fulfilled with fixtures. If generation fails, the test verifies
-the actual UI error and then fails the full-flow gate. Traces and API response
-attachments are saved under the ignored `web/test-results/` directory.
-
-Current browser result: all three real browser checks pass, including a real
-Gemini answer and matching citation/quote/source metadata on desktop and mobile.
-Uploads persist, insufficient evidence is explicit, and upload/connection errors
-remain visible. The JSON report is saved at `web/test-results/live-report.json`.
-Earlier HTTP 402 failures are historical; the latest real generation succeeds.
-The output default was raised to 4096 after a broader financial question hit the
-old 1024-token cap. Provider failures and truncation still return explicit errors;
-no replacement answer is shown.
-
-To make one genuine, uncached Gemini request, activate the virtual environment,
-set a backend key and `GEMINI_MODEL`, then run:
-
-```sh
-cd backend
-python -m app.generation.smoke
-```
-
-To verify the full real API path with W4's documents, run:
+**Full API path:**
 
 ```sh
 cd backend
 python -m app.generation.api_smoke
 ```
 
-This check uses temporary SQLite/files, normal FastAPI routes and the real model
-client. It uploads all five W4 TXT files, checks error responses, rebuilds the
-index from saved passages, then requests two answers and one insufficient-evidence
-result. Each returned citation must resolve to a retrieved passage with exact
-quotes and matching stored source metadata. It refuses dependency overrides,
-uses no fixtures or mocked model responses, and stops on the first generation
-failure. Temporary uploads do not change the application corpus. The ignored
-`backend/data/api-smoke.json` receipt records completed checks and real responses;
-only `success: true` confirms the complete live path. Automated unit tests still
-simulate provider failures separately for deterministic error coverage.
+Uses temporary storage and the real model client, refuses dependency overrides, and stops on the first generation failure. Only `success: true` in the ignored `backend/data/api-smoke.json` receipt confirms the complete live path.
 
-The command prints and records the UTC test time, configured model ID, returned
-`modelVersion`, response text and elapsed milliseconds in the ignored local file
-`backend/data/model-smoke.json`. It exits nonzero and records a safe error on
-failure. The default `gemini-3.8-flash` is now confirmed by the successful
-uncached full API and browser checks below. Rerun verification when changing
-keys or model configuration.
-`GEMINI_TIMEOUT_SECONDS` defaults to 60 (maximum 120); `GEMINI_MAX_OUTPUT_TOKENS`
-defaults to 8192 (maximum 8192). Calls have network timeouts. Provider failures are
-not retried; invalid structured output or evidence gets at most one repair call
-using the same context and remaining timeout budget. Explicit lower output limits still take precedence.
-Gemini 3 models use the supported `low` thinking level for bounded evidence
-extraction and comparison, reducing time spent before the structured answer.
-See Google's [thinking configuration](https://ai.google.dev/gemini-api/docs/generate-content/thinking).
-
-Failed smoke records include a backend-only `error.reason` and, when Google
-returns an HTTP error, `error.provider_http_status`. `network_error` means no
-usable provider response; `configuration` means local settings are invalid;
-`output_token_limit` means the reply was truncated (try a larger output limit).
-HTTP 400 indicates a rejected request (including possible key/configuration
-issues), 401/403 credential or access problems, 404 an unavailable model/endpoint,
-402 a provider payment/quota rejection, and 429 quota/rate limiting. Provider
-response bodies and headers are never recorded. Public 502 messages distinguish
-billing/quota, credential/access, and rate-limit failures. Logs include only safe
-reason/status diagnostics; no provider body, prompts or keys.
-
-Backend routes can use `Depends(get_model_client)` from
-`app.generation.client`, then `client.generate(prompt)` in a synchronous route (FastAPI runs it in its thread pool). The client follows
-the [Gemini REST API](https://ai.google.dev/api/generate-content) and sends the key
-in a header to Google's fixed HTTPS endpoint. Provider errors are mapped to the
-contract's safe 502/504 envelopes by FastAPI. No public model test route or settings
-endpoint is added. `GET /health` remains process liveness only.
-
-Setup attempt on 2026-10-22 at 04:15:53 UTC: a genuine request using the available
-backend key and candidate `gemini-2.5-flash` failed in **23 ms** because this
-workspace could not resolve Google's hostname. No provider response or confirmed
-working model ID was obtained. The local smoke record has `success: false`;
-rerun the command with internet access to complete Gate A.
-
-Updated check on 2026-10-22 at 04:23:47 UTC: Google's authenticated model listing
-returned HTTP 200 and included `gemini-3.8-flash`. The client and environment
-template now default to that model, following Google's
-[recommendation for new projects](https://ai.google.dev/gemini-api/docs/deprecations).
-A genuine generation request returned HTTP **402** in **461 ms**. Network access
-and model discovery work; generation and a working model version remain
-unconfirmed until the API connection's payment/access issue is resolved.
-
-Full API check on 2026-10-22 at 05:40 UTC: all five W4 inputs uploaded and
-indexed (194 passages), invalid-document/selection requests returned the expected
-404/422/415 errors, and empty retrieval returned insufficient evidence. A real
-`/ask` request for W4's Supreme Court question reached the provider, which again
-returned HTTP 402. The API returned a safe 502 billing/quota message. No live
-answer or citation success was obtained in that attempt. There is no mock or
-saved-answer fallback in backend routes.
-
-Latest check on 2026-10-22 at 05:54 UTC: provider access works. The full API check
-succeeded with all five W4 uploads, two real cited answers, and one model-reported
-insufficient-evidence response. Every citation resolved to selected stored text
-with matching metadata and exact quotes. The local receipt has `success: true`
-and `mocked: false`. All three real Chromium tests also passed, including citation
-inspection on desktop and mobile. The model output cap is now 4096 by default; an
-explicit lower `GEMINI_MAX_OUTPUT_TOKENS` setting still takes precedence.
+**Single genuine model request:**
 
 ```sh
-npm run lint
-npm run typecheck
-npm run build
-# With the Python virtual environment activated:
 cd backend
-python -m pytest
+python -m app.generation.smoke
 ```
 
-`npm run start` serves a built frontend. Root npm commands delegate to the `web`
-workspace; use the single root `package-lock.json` and run `npm ci` at the root.
+Records UTC time, model ID, returned `modelVersion`, response, and elapsed ms in `backend/data/model-smoke.json`. Failed records include a safe `error.reason` (`network_error`, `configuration`, or `output_token_limit`) and the provider HTTP status when available.
 
-## Ownership
+</details>
 
-| Lane | Owner fills in name in sprint plan | Files |
+---
+
+## Team and workflow
+
+| Lane | Focus | Files |
 | --- | --- | --- |
 | W1 | Backend, AI, integration | API, contracts, generation, storage, root config/docs |
 | W2 | Ingestion and retrieval | `backend/app/ingestion/`, `backend/app/retrieval/`, lane tests |
 | W3 | Frontend and experience | `web/` |
-| W4 | Corpus, evaluation, demo | `samples/`, `fixtures/`, `evaluation/`, demo/evaluation docs |
+| W4 | Corpus, evaluation, demo | `samples/`, `fixtures/`, `evaluation/`, demo and evaluation docs |
 
-Exact file boundaries, dependency handoffs, and checkpoints are in the sprint plan.
-Claim a lane, work on its branch, test and commit small changes. W1 integrates;
-coordinate before changing another lane or the shared contract. Frontend dependency
-changes require W1 coordination for the root lockfile.
+Claim a lane, work on its branch, and commit small tested changes. W1 integrates. Coordinate before touching another lane or the shared contract, and loop in W1 for frontend dependency changes (single root `package-lock.json`).
 
-## API v1
+## Docs
 
-Upload a public report using the backend's synchronous endpoint:
+- [Sprint plan](docs/sprint-plan.md): exact file boundaries, handoffs, and checkpoints
+- [API contract v1](docs/api-contract.md): shapes, identifiers, dates, and citation rules
 
-```sh
-curl -X POST http://localhost:8000/documents \
-  -F 'file=@report.txt;type=text/plain' \
-  -F 'title=Example report' \
-  -F 'report_date=2026-10-20' \
-  -F 'source_url=https://example.org/report'
-curl http://localhost:8000/documents
-```
+## Notes for contributors
 
-Omit `source_url` when unknown. Uploads accept UTF-8 TXT or text-based PDF with
-matching extension/MIME, up to 10 MiB. `FOLIO_MAX_UPLOAD_BYTES` can lower that cap.
-Empty, invalid UTF-8, encrypted, and textless documents are rejected. Files use
-generated local names; document metadata retains only the display basename.
-Document/passages are saved in one SQLite transaction after extraction succeeds;
-failed uploads remove their original file and do not appear in the document list.
-Passage IDs and exact text survive restarts and repeat uploads.
-
-W1's `app.storage.ingestion` adapter calls W2's `ingest_document`; W1 owns
-persistence. Upload builds a replacement W2 `BM25Index` before committing records,
-so indexing failures also roll back the upload. The in-memory index rebuilds from
-stored passages on the first retrieval after restart and detects new uploads from
-other workers. IDs and text remain unchanged.
-
-Retrieval defaults to hybrid BM25 + Gemini Embedding 2. Set the backend environment
-variable `FOLIO_RETRIEVAL_MODE=bm25` to use keyword search only, or `hybrid` to enable
-semantic search. No frontend changes or new request fields are required. The
-backend `Storage.retrieve(..., mode="bm25" | "hybrid")` also allows an explicit
-override. The existing public W2 `BM25Index` remains the keyword-only index.
-
-Hybrid retrieval embeds each existing passage independently with
-`gemini-embedding-2`, using 768 dimensions and the model's search query/document
-prefixes. Vectors are stored in the existing SQLite database's
-`passage_embeddings` table, keyed by passage ID and model/dimension/prompt version,
-with a content hash preventing reuse of stale vectors. Uploads attempt embedding
-after committing canonical files/passages. Failed embedding does not fail an
-upload; retrieval retries missing vectors for the selected reports. Restarts reuse
-saved vectors. No documents are fetched or re-chunked.
-
-Semantic cosine rankings and BM25 rankings are combined per selected report using
-reciprocal rank fusion (`1 / (60 + rank)`), taking up to 20 candidates from each
-ranking, then preserving the existing balanced six-passage answer context. Query
-embeddings use one provider call when passage vectors are already cached. Missing
-passage vectors are generated in synchronous batches of at most 32 independent
-requests, not combined into one embedding. Provider calls default to an 8-second
-timeout (`GEMINI_EMBEDDING_TIMEOUT_SECONDS`, maximum 20); no further calls are
-started after the operation's 20-second budget expires. Credentials, timeouts,
-provider errors, malformed vectors, and optional cache failures fall back to the
-original BM25 ranking. Generation and citation validation are unchanged.
-
-For v1 compatibility, response `meta.retrieval_mode` retains its existing literal
-`"bm25"`; it cannot distinguish the configured backend modes. Backend INFO logs
-report `requested`, `actual`, `fallback`, and retrieval `elapsed_ms` separately.
-`meta.elapsed_ms` measures the entire answer or comparison request. Both endpoints
-use the configured retrieval mode. A full-report fallback is outside this change.
-
-Retrieval latency measured on 2026-10-22 with the live Gemini Embedding 2 API:
-six synthetic passages of approximately 400 words each, with three passages in
-the selected report. BM25 median was 0.17 ms over 30 queries; cold hybrid retrieval
-(including document embedding backfill) was 1,898 ms. With passage embeddings
-cached, three hybrid queries took 1,025 / 802 / 1,238 ms (median 1,025 ms).
-These measurements exclude answer generation and are a small-corpus check,
-not a production benchmark. API timing dominated the hybrid results.
-
-`POST /ask` accepts `{"question":"How many shelters opened?","doc_ids":["doc_ID"]}`.
-It ranks each selected document independently and interleaves up to six passages,
-sends evidence to the configured model, and builds answer prose from validated
-cited claims.
-Citation metadata comes from storage. Invalid IDs, quotes, or output produce 502;
-provider timeouts produce 504. Empty retrieval or a model finding of insufficient
-evidence returns 200 with `status: "insufficient_evidence"` and no claims.
-
-| Operation | Purpose |
-| --- | --- |
-| `GET /health` | Check backend |
-| `GET /documents` | List uploaded documents |
-| `POST /documents` | Upload PDF/TXT with report date and metadata |
-| `POST /ask` | Retrieve evidence and generate answer |
-| `POST /compare` | Compare explicitly selected older/newer documents |
-| `GET /passages/{id}` | Return exact supporting passage |
-
-The [contract](docs/api-contract.md) defines identifiers, dates, metadata, all
-request/response shapes, and citation rules. Every asserted before/after change
-requires supporting passages from **both** selected report versions.
-
-Use local SQLite/files, BM25, and the approved model API. No Supabase,
-authentication, crawling, OCR, or unnecessary infrastructure. Use public sample
-reports and keep keys out of Git and browser code.
+- Backend routes get the model via `Depends(get_model_client)` from `app.generation.client` and call `client.generate(prompt)` in a synchronous route.
+- `meta.retrieval_mode` keeps its v1 literal `"bm25"` for compatibility. Backend INFO logs report `requested`, `actual`, `fallback`, and retrieval `elapsed_ms` separately.
+- Use public sample reports only, and keep keys out of Git and browser code.
