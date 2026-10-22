@@ -1,65 +1,71 @@
 # Folio
 
-### Catch up on a developing story, with receipts.
+**Catch up on a developing story. Understand what changed. Follow the evidence.**
 
-Folio turns a pile of dated public reports into **cited answers** and **trustworthy before/after comparisons**. Every claim links back to the exact quote, page, date, and publisher it came from. If the evidence isn't there, Folio says so instead of guessing.
+Folio helps you make sense of a story across dated reports. Upload your sources,
+get a concise briefing, ask follow-up questions, and compare earlier reporting
+with newer updates. Generated claims link to the passages behind them, so you can
+read the evidence in context.
 
-| File | Link | 
-| --- | --- | 
-| Slides | [Link](https://drive.google.com/file/d/1OvrtAIxMQ_YCJIGa1Z0xb9IvXflOQp2F/view?usp=drive_link) | 
-| Business Plan | [Link](https://drive.google.com/file/d/14vPPITAEuaf6VaYoBpopxnMhoU9mzAAj/view?usp=drive_link) | 
-| Demo Video | [Link](https://drive.google.com/file/d/17Q3dbk6T3XcBNkhT6EgEn_o5A6-PK21O/view?usp=drive_link) |
+| Slides | Business Plan | Demo Video |
+| :---: | :---: | :---: |
+| [View](https://drive.google.com/file/d/1OvrtAIxMQ_YCJIGa1Z0xb9IvXflOQp2F/view?usp=drive_link) | [View](https://drive.google.com/file/d/14vPPITAEuaf6VaYoBpopxnMhoU9mzAAj/view?usp=drive_link) | [Watch](https://drive.google.com/file/d/17Q3dbk6T3XcBNkhT6EgEn_o5A6-PK21O/view?usp=drive_link) |
 
----
+## Features
 
-## Why Folio
+- **Catch Me Up.** Get a briefing with key takeaways from your selected reports,
+  organized by report date, with citations and unresolved questions.
+- **What Changed.** Compare an older and a newer report to explore updated claims,
+  newly reported information, and differences that remain unresolved. Before/after
+  assertions include evidence from both reports.
+- **Ask Folio.** Ask about a detail, date, or claim across up to five selected
+  reports. Answers use only the sources you choose.
+- **Inspect the evidence.** Open a citation to read the exact quote or the full
+  stored passage with the quote highlighted. Check the document title, report
+  date, PDF page when available, and optional publisher link. Copy quotes or move
+  between citations without leaving the story.
+- **Follow the reporting over time.** Browse a publication timeline and choose
+  which reports to include in a briefing, answer, or comparison.
+- **Build a lasting source collection.** Upload text-based PDFs or UTF-8 TXT files
+  up to 10 MiB each, with a title, publication date, and optional source URL.
+  Documents and passages remain available after a restart.
 
-Stories like disasters, court cases, and financial events change by the day. Reports pile up, versions contradict each other, and summaries from AI tools often cannot show where a statement came from.
+## From reports to context
 
-Folio is built around one rule: **no claim without evidence you can inspect.**
+1. **Add your sources.** Upload dated reports about one developing story.
+2. **Open the story room.** Select reports from the timeline or source list.
+3. **Get oriented.** Use **Catch Me Up** for the story so far, or **Ask Folio** for
+   a specific question.
+4. **Explore an update.** Upload a newer report and use **What Changed** to compare
+   it with an earlier report.
+5. **Check the source.** Open any citation to inspect the supporting passage.
 
-## What it does
+For example, start with two reports on an unfolding event and ask what was known
+at the time. Add a later report, compare it with an earlier one, and inspect the
+passages supporting each reported change.
 
-- **Upload dated reports.** UTF-8 TXT or text-based PDF, up to 10 MiB, with a report date and optional publisher URL.
-- **Ask questions across selected reports.** Answers are built only from validated, cited claims.
-- **Compare two versions of a report.** Pick an older and a newer report. Every asserted change must be supported by passages from **both** versions.
-- **Inspect any citation.** Citation chips open the stored passage with the source file, date, page, the exact highlighted quote, and a link to the publisher.
-- **Fail honestly.** Unsupported questions return an explicit *insufficient evidence* response, and provider failures show a real error. There are no fixtures, sample mode, or fallback answers.
+## Answers you can check
 
-## How it works
+Folio checks citation IDs and exact quotes against the stored passages supplied
+to the model. Source metadata comes from the uploaded document records. When the
+selected evidence cannot support an answer or comparison, Folio explains what is
+missing. Provider failures appear as errors.
 
-```mermaid
-flowchart LR
-    A[Upload TXT / PDF] --> B[Extract + chunk into passages]
-    B --> C[(SQLite + original files)]
-    C --> D[Hybrid retrieval<br/>BM25 + Gemini Embedding 2]
-    D --> E[Gemini Flash<br/>structured, cited output]
-    E --> F{Validate}
-    F -->|passage IDs + exact quotes check out| G[Answer / comparison with citations]
-    F -->|fails| H[Explicit error, never a guess]
-```
+These checks make answers traceable to your sources; they do not independently
+verify the sources or establish that every cited claim is correct. Report dates
+refer to publication dates and may differ from event dates.
 
-**Trust by design**
+## How it runs
 
-1. Retrieval runs **independently per selected report**, then interleaves up to six passages so no single report dominates.
-2. The model must return passage IDs and exact quotes.
-3. The backend **validates every ID and quote** against stored text. Citation metadata comes from storage, never from the model.
-4. Invalid output gets at most one repair attempt, then a clear error.
+Folio uses a **Next.js App Router** interface and a **FastAPI** backend. Original
+files, extracted passages, and cached embeddings are stored locally using files
+and **SQLite**. Retrieval combines **BM25** keyword search with **Gemini Embedding
+2**, falling back to BM25 if embeddings are unavailable. **Gemini Flash** generates
+structured answers and comparisons from the retrieved passages.
 
-## Tech stack
-
-| Layer | Choice |
-| --- | --- |
-| Frontend | Next.js (App Router), in `web/` |
-| Backend | FastAPI (Python 3.12+), in `backend/` |
-| Storage | Local SQLite and original files under `backend/data/` |
-| Retrieval | BM25 + Gemini Embedding 2 (768-dim), fused with reciprocal rank fusion |
-| Generation | Gemini Flash (default `gemini-3.8-flash`) with `low` thinking level |
-| Testing | pytest, ESLint, TypeScript, Playwright (real Chromium, no mocks) |
-
-Deliberately **not** included: Supabase, authentication, crawling, OCR, or any extra infrastructure.
-
----
+The app runs locally; generation and semantic retrieval require internet access
+and send selected text to the configured model API. Source URLs are metadata:
+Folio works with uploaded files. Scanned or encrypted PDFs are unsupported.
 
 ## Quick start
 
@@ -101,79 +107,25 @@ python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 
 > **Keys stay on the backend.** Put secrets only in `backend/.env`. Never copy them to `web/` or use a `NEXT_PUBLIC_` prefix. Setup and health checks need no key.
 
-### Configuration
+For keyword-only retrieval, set `FOLIO_RETRIEVAL_MODE=bm25` in `backend/.env`.
+Other model, storage, timeout, and upload settings are listed in
+[`.env.example`](.env.example). Storage paths are relative to `backend/`.
 
-| Variable | Purpose | Default |
-| --- | --- | --- |
-| `GEMINI_API_KEY` (or `GOOGLE_API_KEY`) | Provider credential, backend only | none |
-| `GEMINI_MODEL` | Generation model | `gemini-3.8-flash` |
-| `GEMINI_TIMEOUT_SECONDS` | Generation timeout | `60` (max 120) |
-| `GEMINI_MAX_OUTPUT_TOKENS` | Output cap | `4096` (max 8192) |
-| `GEMINI_EMBEDDING_TIMEOUT_SECONDS` | Per-call embedding timeout | `8` (max 20) |
-| `FOLIO_RETRIEVAL_MODE` | `hybrid` or `bm25` (keyword only) | `hybrid` |
-| `FOLIO_MAX_UPLOAD_BYTES` | Lower the 10 MiB upload cap | 10 MiB |
-| `FOLIO_CORS_ORIGINS` | Comma-separated allowed origins | `http://localhost:3000` |
+## Development
 
-Shell variables override `backend/.env`. Storage paths are relative to `backend/`. Tables and the upload directory are created on the first storage request.
+The [API contract](docs/api-contract.md) documents upload, questions, comparisons,
+and passage lookup. The [sprint plan](docs/sprint-plan.md) covers file ownership
+and team coordination. See [corpus notes](docs/evaluation.md) for sample source
+provenance and [live evaluation instructions](eval/README.md) for answer-quality
+checks.
 
----
+<details>
+<summary>Developer verification and live workflow results</summary>
 
-## API v1
-
-| Operation | Purpose |
-| --- | --- |
-| `GET /health` | Process liveness |
-| `GET /documents` | List uploaded documents |
-| `POST /documents` | Upload PDF/TXT with report date and metadata |
-| `POST /ask` | Retrieve evidence and generate a cited answer |
-| `POST /compare` | Compare explicitly selected older/newer reports |
-| `GET /passages/{id}` | Return the exact supporting passage |
-
-```sh
-# Upload a public report (omit source_url if unknown)
-curl -X POST http://localhost:8000/documents \
-  -F 'file=@report.txt;type=text/plain' \
-  -F 'title=Example report' \
-  -F 'report_date=2026-10-20' \
-  -F 'source_url=https://example.org/report'
-
-curl http://localhost:8000/documents
-```
-
-```json
-POST /ask
-{"question": "How many shelters opened?", "doc_ids": ["doc_ID"]}
-```
-
-- Invalid IDs, quotes, or model output return **502**. Provider timeouts return **504**.
-- Empty retrieval, or a model finding of insufficient evidence, returns **200** with `status: "insufficient_evidence"` and no claims.
-- Provider billing/quota, credential, and rate-limit failures return distinct safe messages. Logs never contain provider bodies, prompts, or keys.
-
-Full request/response shapes, identifiers, dates, and citation rules are in the [API contract](docs/api-contract.md).
-
----
-
-## Retrieval details
-
-**Hybrid by default.** Each passage is embedded independently with `gemini-embedding-2`. Vectors are cached in SQLite (`passage_embeddings`, keyed by passage ID, model, dimension, and prompt version, with a content hash to prevent stale reuse). Semantic and BM25 rankings are fused per selected report with reciprocal rank fusion (`1 / (60 + rank)`), using up to 20 candidates from each.
-
-**Resilient.** Missing credentials, timeouts, provider errors, malformed vectors, or cache failures fall back to BM25. A failed embedding never fails an upload. Missing vectors are backfilled on retrieval in batches of at most 32. Restarts reuse saved vectors, and the in-memory BM25 index rebuilds from stored passages.
-
-**Measured latency** (live API, small synthetic corpus, excluding answer generation):
-
-| Mode | Latency |
-| --- | --- |
-| BM25 | median 0.17 ms |
-| Hybrid, cold (includes embedding backfill) | 1,898 ms |
-| Hybrid, cached | median 1,025 ms |
-
-This is a small-corpus sanity check, not a production benchmark. Embedding API time dominates the hybrid results.
-
----
-
-## Verification
-
-Everything is tested against the real stack. **No requests are intercepted, mocked, or fulfilled with fixtures.**
+The full workflow browser check uses the production UI, real FastAPI, temporary
+SQLite/files, live Gemini embeddings and generation. It never intercepts requests
+or supplies fixture responses. Separate unit and selection regression tests use
+mocks to exercise failures and UI state predictably.
 
 ```sh
 npm run lint
@@ -182,10 +134,29 @@ npm run build
 cd backend && python -m pytest
 ```
 
-**Latest results:**
+**Full workflow acceptance — October 22, 2026: PASS.** Production build, lint and
+typecheck passed. Backend/corpus checks: **183 passed, 2 skipped** (optional private
+sample files are unavailable). Browser suite: **3 passed**, comprising one complete
+live workflow and two selection regressions.
 
-- **Full API check:** all five sample documents uploaded and indexed (194 passages). Error paths returned the expected 404/422/415. Two real cited answers and one insufficient-evidence response were produced, and every citation resolved to stored text with matching metadata and exact quotes.
-- **Real browser checks (Playwright + Chromium):** 3 of 3 pass. Uploads persist, insufficient evidence is explicit, upload and connection errors stay visible, and a real Gemini answer opens its citation on **desktop and mobile** with matching metadata, an exact highlighted quote, and a publisher link.
+| Check | Result |
+| --- | --- |
+| News feed → four initial reports → multi-report Catch Me Up | PASS |
+| Single-report and multi-report Ask Folio; selection/timeline synchronization | PASS |
+| Canonical citation IDs, selected-document membership, metadata and exact quotes | PASS |
+| Evidence drawer, publisher links and quote highlighting on desktop/mobile | PASS |
+| Held-out newer upload; older-only answers exclude its evidence | PASS |
+| What Changed with correctly ordered versions and inspectable citations from each | PASS |
+| Actual hybrid ranking, confirmed in eight production retrieval logs; no fallback | PASS |
+| Backend process restart: five documents, 194 passages, originals and 194 cached vectors unchanged | PASS |
+| Scoped Ask Folio and comparison after restart | PASS |
+| Insufficient evidence, rejected empty upload, unknown IDs, reversed dates and offline UI | PASS |
+
+Thirteen distinct cited passages were checked through the evidence API. The live
+comparison took approximately 20–21 seconds in this run. These checks validate
+the supplied local corpus; they do not independently verify publisher originals.
+The latest local receipt and backend logs are under
+`web/test-results/*/workflow-receipt.json` and `web/test-results/*/backend.log`.
 
 <details>
 <summary><strong>Reproduce the checks</strong></summary>
@@ -197,7 +168,22 @@ npx playwright install chromium
 npm run test:live --workspace @folio/web
 ```
 
-This starts the production Next.js server and the real FastAPI app with temporary SQLite/files. It uses the root `.venv` on Unix, `eval/.venv` on Windows, or the executable in `FOLIO_TEST_PYTHON`. Rebuild the frontend after changing public API URL settings, since they are bundled at build time. Set `PLAYWRIGHT_CHROMIUM_EXECUTABLE` to use an installed Chrome. Traces and API attachments go to the ignored `web/test-results/`, with the report at `web/test-results/live-report.json`.
+This starts the production Next.js server. The full workflow test owns an isolated
+FastAPI process and temporary SQLite/files, stops and restarts that process with
+the same storage, then checks hashes and runs Ask/Compare again. It refuses to
+reuse an existing backend. It uses the root `.venv` on Unix, `eval/.venv` on Windows,
+or the executable in `FOLIO_TEST_PYTHON`. Rebuild the frontend after changing public
+API URL settings, since they are bundled at build time. Set
+`PLAYWRIGHT_CHROMIUM_EXECUTABLE` to use an installed Chrome. Traces, screenshots,
+responses and retrieval logs go to the ignored `web/test-results/`, with the suite
+report at `web/test-results/live-report.json`.
+
+To avoid occupied development ports, build with
+`NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8012`, then run the suite with
+`FOLIO_TEST_WEB_PORT=3100 FOLIO_TEST_API_PORT=8012`. An isolated checkout's built
+`web/` directory can be selected with `FOLIO_TEST_WEB_DIR` so a running development
+server's build files remain untouched. The API URL bundled into that build must
+match `FOLIO_TEST_API_PORT`.
 
 **Full API path:**
 
@@ -219,26 +205,4 @@ Records UTC time, model ID, returned `modelVersion`, response, and elapsed ms in
 
 </details>
 
----
-
-## Team and workflow
-
-| Lane | Focus | Files |
-| --- | --- | --- |
-| W1 | Backend, AI, integration | API, contracts, generation, storage, root config/docs |
-| W2 | Ingestion and retrieval | `backend/app/ingestion/`, `backend/app/retrieval/`, lane tests |
-| W3 | Frontend and experience | `web/` |
-| W4 | Corpus, evaluation, demo | `samples/`, `fixtures/`, `evaluation/`, demo and evaluation docs |
-
-Claim a lane, work on its branch, and commit small tested changes. W1 integrates. Coordinate before touching another lane or the shared contract, and loop in W1 for frontend dependency changes (single root `package-lock.json`).
-
-## Docs
-
-- [Sprint plan](docs/sprint-plan.md): exact file boundaries, handoffs, and checkpoints
-- [API contract v1](docs/api-contract.md): shapes, identifiers, dates, and citation rules
-
-## Notes for contributors
-
-- Backend routes get the model via `Depends(get_model_client)` from `app.generation.client` and call `client.generate(prompt)` in a synchronous route.
-- `meta.retrieval_mode` keeps its v1 literal `"bm25"` for compatibility. Backend INFO logs report `requested`, `actual`, `fallback`, and retrieval `elapsed_ms` separately.
-- Use public sample reports only, and keep keys out of Git and browser code.
+</details>
