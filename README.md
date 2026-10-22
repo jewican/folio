@@ -1,3 +1,5 @@
+![One story. Countless sources. Context gets lost between updates.](folio-header.png)
+
 # Folio
 
 **Catch up on a developing story. Understand what changed. Follow the evidence.**
