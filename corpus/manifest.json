@@ -1,0 +1,55 @@
+{
+  "documents": [
+    {
+      "id": "articles-2026",
+      "title": "Articles of Impeachment Against Vice President Sara Z. Duterte",
+      "date": "2026-05-11",
+      "file": "initial/articles-of-impeachment-sara-duterte-2026.txt",
+      "source_url": "https://media.philstar.com/editorial/documents/articles-of-impeachment-sara-duterte-2026.pdf",
+      "heldout": false,
+      "status": "ready",
+      "text_type": "ocr"
+    },
+    {
+      "id": "committee-report-261",
+      "title": "House Committee Report No. 261",
+      "date": "2026-05-05",
+      "file": "initial/CR00261_extracted.txt",
+      "source_url": "https://docs.congress.hrep.online/legisdocs/first_20/CR00261.pdf",
+      "heldout": false,
+      "status": "ready",
+      "text_type": "ocr"
+    },
+    {
+      "id": "sara-duterte-answer-2026",
+      "title": "Sara Duterte Answer to the Articles of Impeachment",
+      "date": "2026-05-25",
+      "file": "initial/sara-duterte-defense.txt",
+      "source_url": "https://senate.gov.ph/services/impeachment-documents",
+      "transcription_reference": "https://tordecilla.github.io/duterte-impeachment-working-draft/defense-answer/",
+      "heldout": false,
+      "status": "pending_text_conversion",
+      "text_type": "not_yet_available"
+    },
+    {
+      "id": "sc-press-briefer-2026-08-05",
+      "title": "Supreme Court Press Briefer — Sara Duterte Impeachment Section",
+      "date": "2026-08-05",
+      "file": "initial/SC_Press_Briefer_2026-08-05_Sara_Duterte.txt",
+      "source_url": "https://sc.judiciary.gov.ph/press-briefer-august-05-2026/",
+      "heldout": false,
+      "status": "ready",
+      "text_type": "webpage_excerpt"
+    },
+    {
+      "id": "house-press-10322-2026-10-13",
+      "title": "House Prosecution Update on Sara Duterte Impeachment",
+      "date": "2026-10-13",
+      "file": "heldout/FOLIO_HELDOUT_2026-10-13_House_Prosecution_Update.txt",
+      "source_url": "https://congress.gov.ph/index.php/media/press-releases/10322",
+      "heldout": true,
+      "status": "ready",
+      "text_type": "paraphrased_summary_not_verbatim"
+    }
+  ]
+}
