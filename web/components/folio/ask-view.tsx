@@ -332,7 +332,7 @@ export function AnswerView({
   );
 }
 
-function toSource(
+export function toSource(
   citation: Citation,
   documents: FolioDocument[],
   onOpen: (citation: Citation) => void,

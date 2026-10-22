@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { MotionConfig } from "motion/react";
-import { BookOpen, ChevronRight, GitCompareArrows, Menu } from "lucide-react";
+import { BookOpen, ChevronRight, Menu } from "lucide-react";
 import { AnswerView, AskIntro, Composer, type AskState } from "@/components/folio/ask-view";
+import { CompareView, type CompareState } from "@/components/folio/compare-view";
 import {
   DocumentSidebar,
   VIEWS,
@@ -15,12 +16,13 @@ import {
   MAX_ASK_DOCUMENTS,
   USING_SAMPLE_DATA,
   ask,
+  compare,
   errorMessage,
   listDocuments,
   uploadDocument,
   type UploadRequest,
 } from "@/lib/api";
-import type { Citation, FolioDocument } from "@/lib/types";
+import type { Citation, CompareRequest, FolioDocument } from "@/lib/types";
 
 // Matches Tailwind's xl breakpoint, where the evidence panel becomes a column.
 const EVIDENCE_COLUMN_QUERY = "(min-width: 80rem)";
@@ -32,6 +34,7 @@ export function FolioApp() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [view, setView] = useState<View>("ask");
   const [askState, setAskState] = useState<AskState>({ status: "idle" });
+  const [compareState, setCompareState] = useState<CompareState>({ status: "idle" });
   const [activeCitation, setActiveCitation] = useState<Citation | null>(null);
   const [navOpen, setNavOpen] = useState(false);
   const [evidenceOpen, setEvidenceOpen] = useState(false);
@@ -39,6 +42,7 @@ export function FolioApp() {
   const [newIds, setNewIds] = useState<string[]>([]);
 
   const askRun = useRef(0);
+  const compareRun = useRef(0);
   const scrollRef = useRef<HTMLDivElement>(null);
   const evidenceRef = useRef<HTMLElement>(null);
   const evidenceTrigger = useRef<HTMLElement | null>(null);
@@ -119,6 +123,20 @@ export function FolioApp() {
     } catch (error) {
       if (run === askRun.current) {
         setAskState({ status: "error", question, docIds, message: errorMessage(error) });
+      }
+    }
+  }
+
+  async function compareReports(request: CompareRequest) {
+    const run = ++compareRun.current;
+    setActiveCitation(null);
+    setCompareState({ status: "loading", request });
+    try {
+      const response = await compare(request);
+      if (run === compareRun.current) setCompareState({ status: "done", response });
+    } catch (error) {
+      if (run === compareRun.current) {
+        setCompareState({ status: "error", request, message: errorMessage(error) });
       }
     }
   }
@@ -228,7 +246,13 @@ export function FolioApp() {
 
           <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto">
             {view === "compare" ? (
-              <ComparePlaceholder />
+              <CompareView
+                documents={documents}
+                state={compareState}
+                activeCitation={activeCitation}
+                onOpenCitation={openCitation}
+                onCompare={compareReports}
+              />
             ) : askState.status === "idle" ? (
               <AskIntro selectedCount={selection.length} onAsk={askQuestion} />
             ) : (
@@ -270,25 +294,5 @@ export function FolioApp() {
         />
       </div>
     </MotionConfig>
-  );
-}
-
-function ComparePlaceholder() {
-  return (
-    <section className="mx-auto flex w-full max-w-[560px] flex-col items-center px-6 py-20 text-center">
-      <span className="grid size-12 place-items-center rounded-full bg-white text-[#8fa4bf] shadow-[0_1px_3px_#00000010]">
-        <GitCompareArrows size={20} />
-      </span>
-      <h1 className="mt-5 text-[22px] font-semibold tracking-[-0.03em] text-[#2c333d]">
-        Compare two dated reports
-      </h1>
-      <p className="mt-2 text-[14px] leading-relaxed text-[#77818d]">
-        Pick an older and a newer report to see what changed between them, with
-        supporting passages from both versions.
-      </p>
-      <p className="mt-6 rounded-full border border-[#e1e5ea] bg-white/70 px-3 py-1 text-[11px] text-[#8b95a1]">
-        Comparison isn&apos;t connected yet
-      </p>
-    </section>
   );
 }
